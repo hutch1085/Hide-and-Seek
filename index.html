@@ -4584,9 +4584,6 @@
             PROP_HEIGHT_OFFSET: 0.5, // Height above ground for props
         };
 
-        // Override default game time limit if needed
-        gameState.timeLimit = GAME_CONFIG.GAME_TIME_LIMIT;
-
         // Verify all procedural textures were created using CanvasTexture technology
         // These textures are critical for the dramatic visual upgrade - they provide:
         // - sandTex: beach sand with grain detail via CanvasTexture
@@ -4702,6 +4699,9 @@
             startTime: 0,
             timeLimit: 300
         };
+
+        // Override default game time limit if needed
+        gameState.timeLimit = GAME_CONFIG.GAME_TIME_LIMIT;
 
         // ============ GAME LOGIC ============
         function startGame(role, isSolo = false) {
