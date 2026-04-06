@@ -219,6 +219,21 @@
     </div>
     <button id="action-btn">🥥</button>
 
+    <!-- Crosshair (hunter targeting) -->
+    <div id="crosshair" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:60; pointer-events:none;">
+        <svg width="60" height="60" viewBox="0 0 60 60">
+            <circle cx="30" cy="30" r="18" stroke="#FF6B35" stroke-width="2" fill="none" opacity="0.7"/>
+            <circle cx="30" cy="30" r="3" fill="#FF6B35" opacity="0.8"/>
+            <line x1="30" y1="5" x2="30" y2="18" stroke="#FF6B35" stroke-width="2" opacity="0.6"/>
+            <line x1="30" y1="42" x2="30" y2="55" stroke="#FF6B35" stroke-width="2" opacity="0.6"/>
+            <line x1="5" y1="30" x2="18" y2="30" stroke="#FF6B35" stroke-width="2" opacity="0.6"/>
+            <line x1="42" y1="30" x2="55" y2="30" stroke="#FF6B35" stroke-width="2" opacity="0.6"/>
+        </svg>
+    </div>
+    <div id="target-indicator" style="display:none; position:fixed; z-index:59; pointer-events:none; color:#FF4444; font-weight:bold; font-size:14px; text-shadow:0 0 4px #000;">
+        \u{1F3AF} TARGET LOCKED
+    </div>
+
     <!-- Vignette Overlay -->
     <div id="vignette"></div>
 
@@ -238,12 +253,27 @@
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         renderer.toneMappingExposure = 1.35;
-        renderer.setClearColor(0x87CEEB);
+        renderer.setClearColor(0xC4A882);
         renderer.gammaFactor = 2.2;
         renderer.outputEncoding = THREE.sRGBEncoding;
         document.body.appendChild(renderer.domElement);
 
         scene.fog = new THREE.FogExp2(0xC4A882, 0.003);
+
+        // NaN sanitizer — auto-clean positions before computing normals
+        const _origComputeNormals = THREE.BufferGeometry.prototype.computeVertexNormals;
+        THREE.BufferGeometry.prototype.computeVertexNormals = function() {
+            const pos = this.attributes.position;
+            if (pos) {
+                for (let i = 0; i < pos.count; i++) {
+                    if (isNaN(pos.getX(i))) pos.setX(i, 0);
+                    if (isNaN(pos.getY(i))) pos.setY(i, 0);
+                    if (isNaN(pos.getZ(i))) pos.setZ(i, 0);
+                }
+            }
+            _origComputeNormals.call(this);
+        };
+
 
         // ============ PROCEDURAL TEXTURES ============
         function makeTexture(width, height, drawFn) {
@@ -2917,36 +2947,31 @@
                 if (child.isMesh && child.geometry) {
                     const geo = child.geometry;
                     const posAttr = geo.attributes.position;
-                    if (!posAttr) return;
-
-                    // Create color attribute if it doesn't exist
+                    if (!posAttr || posAttr.count === 0) return;
+                    // Check for NaN
+                    let hasNaN = false;
+                    for (let i = 0; i < Math.min(posAttr.count, 10); i++) {
+                        if (isNaN(posAttr.getX(i)) || isNaN(posAttr.getY(i)) || isNaN(posAttr.getZ(i))) { hasNaN = true; break; }
+                    }
+                    if (hasNaN) return;
                     if (!geo.attributes.color) {
                         const colors = new Float32Array(posAttr.count * 3);
-                        for (let i = 0; i < colors.length; i++) colors[i] = 1.0; // default white
+                        for (let i = 0; i < colors.length; i++) colors[i] = 1.0;
                         geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
                     }
-
                     const colorAttr = geo.attributes.color;
-
-                    // Get bounding box to determine Y range
                     geo.computeBoundingBox();
                     const box = geo.boundingBox;
+                    if (!box || isNaN(box.min.y) || isNaN(box.max.y)) return;
                     const minY = box.min.y, maxY = box.max.y;
                     const yRange = maxY - minY;
-
-                    // Apply weathering colors based on Y position
                     for (let i = 0; i < posAttr.count; i++) {
                         const y = posAttr.getY(i);
-                        const t = yRange > 0 ? (y - minY) / yRange : 0.5; // 0 at bottom, 1 at top
-
-                        // Bottom: darker (ground dirt/shadow, multiply by 0.6)
-                        // Top: lighter (sun bleaching, multiply by 1.1)
-                        const factor = 0.6 + t * (1.1 - 0.6);
-
+                        if (isNaN(y)) continue;
+                        const t = yRange > 0 ? (y - minY) / yRange : 0.5;
+                        const factor = 0.7 + t * 0.35;
                         colorAttr.setXYZ(i, factor, factor, factor);
                     }
-
-                    // Enable vertex colors on material
                     if (child.material) {
                         if (Array.isArray(child.material)) {
                             child.material.forEach(mat => mat.vertexColors = true);
@@ -4730,6 +4755,8 @@
 
         function endGame(forceWinner) {
             gameState.active = false;
+            document.getElementById('crosshair').style.display = 'none';
+            document.getElementById('target-indicator').style.display = 'none';
             // Determine winner: if all menehune are eliminated → hunters win; if timer ran out → menehune win
             let hunterWin;
             if (forceWinner === 'hunters') {
@@ -4969,14 +4996,45 @@
             onAction();
         });
 
+        // Auto-targeting system for hunters
+        let currentTarget = null;
+
+        function findBestTarget() {
+            if (!localPlayer || localPlayer.role !== 'hunter') return null;
+            const camDir = new THREE.Vector3();
+            camera.getWorldDirection(camDir);
+            let bestTarget = null;
+            let bestScore = Infinity;
+            Object.values(players).forEach(p => {
+                if (p.role !== 'menehune' || p.isEliminated) return;
+                let targetPos = p.position.clone();
+                targetPos.y += 0.5;
+                if (p.isTransformed && p.hiddenPropIndex !== null && props[p.hiddenPropIndex]) {
+                    targetPos = props[p.hiddenPropIndex].position.clone();
+                    targetPos.y += 0.5;
+                }
+                const dist = localPlayer.position.distanceTo(targetPos);
+                if (dist > 40) return;
+                const toTarget = targetPos.clone().sub(camera.position).normalize();
+                const angle = camDir.angleTo(toTarget);
+                if (angle > Math.PI / 3) return;
+                const score = dist * 0.5 + angle * 20;
+                if (score < bestScore) {
+                    bestScore = score;
+                    bestTarget = { player: p, position: targetPos, dist: dist, angle: angle };
+                }
+            });
+            return bestTarget;
+        }
+
         function onAction() {
             if (!gameState.active || !localPlayer) return;
 
             if (localPlayer.role === 'menehune') {
                 if (!localPlayer.isTransformed) {
                     const closestProp = props
-                        .filter(p => !p.hidden)
                         .map((p, i) => ({ ...p, index: i }))
+                        .filter(p => !p.hidden)
                         .sort((a, b) => a.position.distanceTo(localPlayer.position) - b.position.distanceTo(localPlayer.position))[0];
 
                     if (closestProp && closestProp.position.distanceTo(localPlayer.position) < 3) {
@@ -4986,16 +5044,24 @@
                     localPlayer.unhide();
                 }
             } else {
-                // Throw coconut in the direction the camera is facing
-                const direction = new THREE.Vector3();
-                camera.getWorldDirection(direction);
-                direction.y = 0.2; // slight upward arc
-                direction.normalize();
+                const target = findBestTarget();
+                let direction;
+                if (target) {
+                    direction = target.position.clone().sub(localPlayer.position);
+                    const dist = direction.length();
+                    const arcHeight = Math.min(0.5, dist * 0.04);
+                    direction.normalize();
+                    direction.y += arcHeight;
+                    direction.normalize();
+                } else {
+                    direction = new THREE.Vector3();
+                    camera.getWorldDirection(direction);
+                    direction.y = 0.2;
+                    direction.normalize();
+                }
                 localPlayer.throwCoconut(direction);
             }
-        }
-
-        // ============ GRASS TUFTS ============
+        }// ============ GRASS TUFTS ============
         function createGrassTufts() {
             const group = new THREE.Group();
             const greenColors = [0x2D5016, 0x3A6A1F, 0x4A7A2E, 0x5A8A3E, 0x467025];
@@ -6636,6 +6702,35 @@
                 const targetZ = localPlayer.position.z - Math.cos(cameraState.angle) * camDist;
                 camera.position.lerp(new THREE.Vector3(targetX, targetY, targetZ), 0.06);
                 camera.lookAt(localPlayer.position.x, localPlayer.position.y + 0.5, localPlayer.position.z);
+            }
+
+            // Update crosshair and target indicator for hunters
+            const crosshairEl = document.getElementById('crosshair');
+            const targetIndEl = document.getElementById('target-indicator');
+            if (localPlayer && localPlayer.role === 'hunter' && gameState.active) {
+                crosshairEl.style.display = 'block';
+                const target = findBestTarget();
+                currentTarget = target;
+                if (target) {
+                    crosshairEl.querySelector('svg').style.filter = 'hue-rotate(-20deg) brightness(1.3)';
+                    const screenPos = target.position.clone().project(camera);
+                    const sx = (screenPos.x * 0.5 + 0.5) * window.innerWidth;
+                    const sy = (-screenPos.y * 0.5 + 0.5) * window.innerHeight;
+                    if (screenPos.z < 1) {
+                        targetIndEl.style.display = 'block';
+                        targetIndEl.style.left = sx + 'px';
+                        targetIndEl.style.top = (sy - 30) + 'px';
+                        targetIndEl.style.transform = 'translate(-50%, -100%)';
+                    } else {
+                        targetIndEl.style.display = 'none';
+                    }
+                } else {
+                    crosshairEl.querySelector('svg').style.filter = 'none';
+                    targetIndEl.style.display = 'none';
+                }
+            } else {
+                crosshairEl.style.display = 'none';
+                targetIndEl.style.display = 'none';
             }
 
             renderer.render(scene, camera);
