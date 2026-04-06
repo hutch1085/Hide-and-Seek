@@ -4844,30 +4844,27 @@
         // Right-side touch for camera rotation
         // Only preventDefault during active gameplay — otherwise lobby/end screen buttons won't work
         document.addEventListener('touchstart', (e) => {
-            if (gameState.active) {
-                e.preventDefault();
-            }
+            // Only preventDefault for camera touches, not UI elements
             for (const touch of e.changedTouches) {
-                // Only capture touches on the right half of the screen (not on action button)
+                // Only capture touches on the right half of the screen (not on action button or joystick)
                 if (touch.clientX > window.innerWidth * 0.4 && cameraState.touchId === null && gameState.active) {
-                    const actionBtn = document.getElementById('action-btn');
-                    const btnRect = actionBtn.getBoundingClientRect();
+                    const abtn = document.getElementById('action-btn');
+                    const btnRect = abtn.getBoundingClientRect();
                     // Avoid capturing touches on the action button
                     if (touch.clientX >= btnRect.left && touch.clientX <= btnRect.right &&
                         touch.clientY >= btnRect.top && touch.clientY <= btnRect.bottom) continue;
                     cameraState.touchId = touch.identifier;
                     cameraState.lastX = touch.clientX;
                     cameraState.lastY = touch.clientY;
+                    e.preventDefault();
                 }
             }
         }, { passive: false });
 
         document.addEventListener('touchmove', (e) => {
-            if (gameState.active) {
-                e.preventDefault();
-            }
             for (const touch of e.changedTouches) {
                 if (touch.identifier === cameraState.touchId) {
+                    e.preventDefault();
                     const dx = touch.clientX - cameraState.lastX;
                     const dy = touch.clientY - cameraState.lastY;
                     cameraState.angle -= dx * 0.005;
@@ -4899,24 +4896,45 @@
         const joystickContainer = document.getElementById('joystick-container');
         const joystickKnob = document.getElementById('joystick-knob');
 
+        let joystickTouchId = null;
+
         joystickContainer.addEventListener('touchstart', (e) => {
             e.preventDefault();
             e.stopPropagation();
+            const touch = e.changedTouches[0];
+            joystickTouchId = touch.identifier;
             joystickState.pressed = true;
-            handleJoystickMove(e.touches[0]);
+            handleJoystickMove(touch);
         }, { passive: false });
 
         joystickContainer.addEventListener('touchmove', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            if (joystickState.pressed) handleJoystickMove(e.touches[0]);
+            for (const touch of e.changedTouches) {
+                if (touch.identifier === joystickTouchId && joystickState.pressed) {
+                    handleJoystickMove(touch);
+                }
+            }
         }, { passive: false });
 
-        joystickContainer.addEventListener('touchend', () => {
+        function resetJoystick() {
+            joystickTouchId = null;
             joystickState.pressed = false;
             joystickState.x = 0;
             joystickState.y = 0;
             joystickKnob.style.transform = 'translate(37px, 37px)';
+        }
+
+        joystickContainer.addEventListener('touchend', (e) => {
+            for (const touch of e.changedTouches) {
+                if (touch.identifier === joystickTouchId) {
+                    resetJoystick();
+                }
+            }
+        });
+
+        joystickContainer.addEventListener('touchcancel', (e) => {
+            resetJoystick();
         });
 
         function handleJoystickMove(touch) {
@@ -4938,8 +4956,16 @@
             joystickKnob.style.transform = `translate(calc(37px + ${joystickState.x * 37}px), calc(37px + ${joystickState.y * 37}px))`;
         }
 
-        // Action button
-        document.getElementById('action-btn').addEventListener('click', () => {
+        // Action button — use touchstart (not click) so document-level preventDefault doesn't block it
+        const actionBtn = document.getElementById('action-btn');
+        actionBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onAction();
+        }, { passive: false });
+        // Keep click for desktop fallback
+        actionBtn.addEventListener('click', (e) => {
+            if (!e.isTrusted || e.detail === 0) return; // skip synthetic clicks from touch
             onAction();
         });
 
