@@ -2994,9 +2994,9 @@
             addPropWeathering(mesh);
             scene.add(mesh);
             // Add a glowing ring at the base of each hideable prop
-            const ringGeo = new THREE.RingGeometry(0.6, 0.75, 24);
+            const ringGeo = new THREE.RingGeometry(0.8, 1.0, 32);
             const ringMat = new THREE.MeshBasicMaterial({
-                color: 0x00FF88,
+                color: 0x44FFAA,
                 transparent: true,
                 opacity: 0.0,
                 side: THREE.DoubleSide,
@@ -6727,7 +6727,7 @@
                 if (p.highlightRing) {
                     if (showRings && !p.hidden) {
                         p.highlightRing.visible = true;
-                        p.highlightRing.material.opacity = 0.15 + pulseVal * 0.25;
+                        p.highlightRing.material.opacity = 0.25 + pulseVal * 0.35;
                         p.highlightRing.rotation.z = Date.now() * 0.0005;
                     } else {
                         p.highlightRing.visible = false;
