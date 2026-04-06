@@ -1316,7 +1316,7 @@
         // ============ PALM TREES ============
         function createPalmTree() {
             const group = new THREE.Group();
-            const barkMat = new THREE.MeshPhongMaterial({ map: barkTex, bumpMap: barkBumpTex, bumpScale: 0.3, shininess: 10, specular: 0x221100 });
+            const barkMat = new THREE.MeshPhongMaterial({ color: 0x6B4423, map: barkTex, bumpMap: barkBumpTex, bumpScale: 0.3, shininess: 10, specular: 0x221100 });
 
             // Trunk — 12 segments for smooth organic curve
             let yOff = 0, lean = 0, leanX = 0;
@@ -1605,8 +1605,8 @@
         // ============ TIKI HUTS ============
         function createTikiHut() {
             const group = new THREE.Group();
-            const woodMat = new THREE.MeshPhongMaterial({ map: woodTex, shininess: 25, specular: 0x221100 });
-            const thatchMat = new THREE.MeshPhongMaterial({ map: thatchTex, shininess: 10 });
+            const woodMat = new THREE.MeshPhongMaterial({ color: 0x8B6B3E, map: woodTex, shininess: 25, specular: 0x221100 });
+            const thatchMat = new THREE.MeshPhongMaterial({ color: 0x8B7D1A, map: thatchTex, shininess: 10 });
             const darkWoodMat = new THREE.MeshPhongMaterial({ color: 0x5A3A1A, map: woodTex, shininess: 15 });
 
             // Raised floor with planks
@@ -1957,7 +1957,7 @@
         // ============ TIKI TORCHES ============
         function createTikiTorch() {
             const group = new THREE.Group();
-            const poleMat = new THREE.MeshPhongMaterial({ map: woodTex, shininess: 20 });
+            const poleMat = new THREE.MeshPhongMaterial({ color: 0x8B5A2B, map: woodTex, shininess: 20 });
             // Tapered pole with bamboo-like segment rings
             const poleGeo = new THREE.CylinderGeometry(0.08, 0.12, 1.8, 10, 8);
             const pp = poleGeo.attributes.position;
@@ -2644,7 +2644,7 @@
             } else if (type === 'hammock') {
                 // Hammock with posts, rope supports, deeply sagging woven fabric, spreader bars
                 mesh = new THREE.Group();
-                const postMat = new THREE.MeshPhongMaterial({ map: barkTex, shininess: 8 });
+                const postMat = new THREE.MeshPhongMaterial({ color: 0x6B4423, map: barkTex, shininess: 8 });
                 const ropeMat = new THREE.MeshPhongMaterial({ color: 0xC8B080, shininess: 8 });
                 // Tapered posts with notch at top
                 for (let s of [-1, 1]) {
@@ -2831,7 +2831,7 @@
             } else {
                 // Fish net on drying frame — grid lattice with knots, cross beam, weights
                 mesh = new THREE.Group();
-                const poleMat = new THREE.MeshPhongMaterial({ map: barkTex, shininess: 8 });
+                const poleMat = new THREE.MeshPhongMaterial({ color: 0x6B4423, map: barkTex, shininess: 8 });
                 // Tapered poles
                 const pole1 = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 1.5, 8), poleMat);
                 pole1.position.set(-0.45, 0.75, 0);
@@ -3044,7 +3044,7 @@
         // ============ WOODEN DOCK / PIER ============
         function createDock() {
             const group = new THREE.Group();
-            const woodMat = new THREE.MeshPhongMaterial({ map: woodTex, shininess: 15 });
+            const woodMat = new THREE.MeshPhongMaterial({ color: 0x7A5C2E, map: woodTex, shininess: 15 });
             const darkWood = new THREE.MeshPhongMaterial({ color: 0x5A4020, map: woodTex, shininess: 10 });
             const nailMat = new THREE.MeshPhongMaterial({ color: 0x555555, shininess: 40 });
             // Main pier planks with gaps between
@@ -4886,7 +4886,13 @@
             }
         });
 
-        window.addEventListener('keydown', (e) => { keys[e.key.toLowerCase()] = true; });
+        window.addEventListener('keydown', (e) => {
+                keys[e.key.toLowerCase()] = true;
+                if (e.key === ' ' || e.code === 'Space') {
+                    e.preventDefault();
+                    onAction();
+                }
+            });
         window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
 
         // Joystick
@@ -5062,7 +5068,7 @@
         // ============ STEPPING STONES ============
         function createSteppingStones() {
             const group = new THREE.Group();
-            const mat = new THREE.MeshPhongMaterial({ map: stoneTex, shininess: 15 });
+            const mat = new THREE.MeshPhongMaterial({ color: 0x7A7A6A, map: stoneTex, shininess: 15 });
             const mossMat = new THREE.MeshPhongMaterial({ color: 0x3A6A1F, shininess: 5, transparent: true, opacity: 0.7 });
             function makeIrregularStone(r1, r2, h) {
                 const geo = new THREE.CylinderGeometry(r1, r2, h, 12, 1);
@@ -5206,7 +5212,7 @@
         // ============ BONFIRE ============
         function createBonfire() {
             const group = new THREE.Group();
-            const woodMat = new THREE.MeshPhongMaterial({ map: barkTex, bumpMap: barkBumpTex, bumpScale: 0.3, shininess: 15 });
+            const woodMat = new THREE.MeshPhongMaterial({ color: 0x5C3A23, map: barkTex, bumpMap: barkBumpTex, bumpScale: 0.3, shininess: 15 });
             const charMat = new THREE.MeshPhongMaterial({ color: 0x1A0800, shininess: 2 });
             const ashMat = new THREE.MeshPhongMaterial({ color: 0x888888, shininess: 3, transparent: true, opacity: 0.6 });
 
@@ -5753,7 +5759,7 @@
                         move.addScaledVector(camRight, inputX);
                         move.addScaledVector(camForward, -inputZ); // negative because joystick up = forward
                         move.normalize();
-                        localPlayer.velocity.copy(move.multiplyScalar(8));
+                        localPlayer.velocity.copy(move.multiplyScalar(16));
                         // Facing is now handled smoothly in Player.update()
                     } else {
                         localPlayer.velocity.set(0, 0, 0);
