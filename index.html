@@ -160,6 +160,17 @@
         }
 
         #action-btn:active { transform: scale(0.92); background: rgba(139, 69, 19, 0.95); }
+
+        #vignette {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.4) 100%);
+            pointer-events: none;
+            z-index: 45;
+        }
     </style>
 </head>
 <body>
@@ -181,7 +192,7 @@
     <!-- Game HUD -->
     <div id="game-hud">
         <div class="game-info">
-            <div class="timer">Time: <span id="game-timer">180</span>s</div>
+            <div class="timer">Time: <span id="game-timer">300</span>s</div>
             <div class="role-badge" id="role-badge">🌿 MENEHUNE</div>
             <div id="status">Players: <span id="player-count">1</span></div>
         </div>
@@ -206,6 +217,9 @@
         <div id="joystick-knob"></div>
     </div>
     <button id="action-btn">🥥</button>
+
+    <!-- Vignette Overlay -->
+    <div id="vignette"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
@@ -629,6 +643,122 @@
             }
         });
 
+        // Contact shadow texture (radial gradient, dark center to transparent edges)
+        const shadowTex = makeTexture(128, 128, (ctx, w, h) => {
+            const grad = ctx.createRadialGradient(w/2, h/2, 0, w/2, h/2, w/2);
+            grad.addColorStop(0, 'rgba(0,0,0,0.8)');
+            grad.addColorStop(0.5, 'rgba(0,0,0,0.4)');
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, w, h);
+        });
+
+        // Bump maps for surface detail
+        const woodBumpTex = makeTexture(256, 256, (ctx, w, h) => {
+            ctx.fillStyle = '#333333';
+            ctx.fillRect(0, 0, w, h);
+            // Horizontal grain lines
+            for (let i = 0; i < 20; i++) {
+                const y = Math.random() * h;
+                const thickness = 1 + Math.random() * 2;
+                const brightness = 50 + Math.random() * 100;
+                ctx.strokeStyle = `rgb(${brightness},${brightness},${brightness})`;
+                ctx.lineWidth = thickness;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(w, y);
+                ctx.stroke();
+            }
+            // Knot circles (darker bumps)
+            for (let i = 0; i < 10; i++) {
+                const x = Math.random() * w;
+                const y = Math.random() * h;
+                const r = 5 + Math.random() * 8;
+                const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+                grad.addColorStop(0, '#222222');
+                grad.addColorStop(1, '#444444');
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        });
+        woodBumpTex.repeat.set(4, 4);
+
+        const stoneBumpTex = makeTexture(256, 256, (ctx, w, h) => {
+            ctx.fillStyle = '#666666';
+            ctx.fillRect(0, 0, w, h);
+            // Random rocky bumps
+            for (let i = 0; i < 100; i++) {
+                const x = Math.random() * w;
+                const y = Math.random() * h;
+                const size = 2 + Math.random() * 5;
+                const brightness = 100 + Math.random() * 100;
+                ctx.fillStyle = `rgb(${brightness},${brightness},${brightness})`;
+                ctx.beginPath();
+                ctx.arc(x, y, size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            // Crevice patterns (dark lines)
+            for (let i = 0; i < 20; i++) {
+                ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+                ctx.lineWidth = 1 + Math.random() * 1.5;
+                ctx.beginPath();
+                let x = Math.random() * w, y = Math.random() * h;
+                ctx.moveTo(x, y);
+                for (let j = 0; j < 5; j++) {
+                    x += Math.random() * 30 - 15;
+                    y += Math.random() * 30 - 15;
+                    ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            }
+        });
+        stoneBumpTex.repeat.set(3, 3);
+
+        const sandBumpTex = makeTexture(256, 256, (ctx, w, h) => {
+            ctx.fillStyle = '#999999';
+            ctx.fillRect(0, 0, w, h);
+            // Ripple wave patterns
+            for (let i = 0; i < 15; i++) {
+                const startX = Math.random() * w;
+                const startY = Math.random() * h;
+                const amplitude = 5 + Math.random() * 10;
+                const freq = 0.05 + Math.random() * 0.08;
+                ctx.strokeStyle = `rgba(${100+Math.random()*50},${100+Math.random()*50},${100+Math.random()*50},0.6)`;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                for (let x = startX; x < startX + 80; x += 2) {
+                    const y = startY + Math.sin(x * freq) * amplitude;
+                    if (x === startX) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            }
+        });
+        sandBumpTex.repeat.set(6, 6);
+
+        const barkBumpTex = makeTexture(256, 256, (ctx, w, h) => {
+            ctx.fillStyle = '#555555';
+            ctx.fillRect(0, 0, w, h);
+            // Vertical ridge lines
+            for (let i = 0; i < 30; i++) {
+                const x = Math.random() * w;
+                const brightness = 80 + Math.random() * 80;
+                ctx.strokeStyle = `rgb(${brightness},${brightness},${brightness})`;
+                ctx.lineWidth = 1 + Math.random() * 1.5;
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                const waves = 3 + Math.floor(Math.random() * 3);
+                for (let y = 0; y < h; y += 5) {
+                    const wobble = Math.sin(y * 0.05 + i) * 2;
+                    ctx.lineTo(x + wobble, y);
+                }
+                ctx.stroke();
+            }
+        });
+        barkBumpTex.repeat.set(2, 4);
+
         // ============ LIGHTING ============
         const sun = new THREE.DirectionalLight(0xFFE8C0, 1.8);
         sun.position.set(100, 120, -50);
@@ -869,7 +999,7 @@
                 bPos.setY(i, h);
             }
             beachGeo.computeVertexNormals();
-            const beachMat = new THREE.MeshPhongMaterial({ map: sandTex, shininess: 10 });
+            const beachMat = new THREE.MeshPhongMaterial({ map: sandTex, bumpMap: sandBumpTex, bumpScale: 0.3, shininess: 10 });
             const beachMesh = new THREE.Mesh(beachGeo, beachMat);
             beachMesh.position.z = -130;
             beachMesh.receiveShadow = true;
@@ -889,8 +1019,34 @@
                 const h = h1 + h2;
                 gPos.setY(i, h);
             }
+            // Add vertex colors for zone blending (Z-based gradient)
+            const gColor = grassGeo.getAttribute('color') || new THREE.BufferAttribute(new Float32Array(gPos.count * 3), 3);
+            grassGeo.setAttribute('color', gColor);
+            const minZ = -100, maxZ = 100;
+            for (let i = 0; i < gPos.count; i++) {
+                const z = gPos.getZ(i);
+                const t = (z - minZ) / (maxZ - minZ); // 0 at south (beach), 1 at north (jungle)
+                // South edge: sandy tan (0.86, 0.82, 0.71)
+                // Center: rich green (0.29, 0.48, 0.18)
+                // North edge: dark jungle green (0.12, 0.29, 0.06)
+                let r, g, b;
+                if (t < 0.5) {
+                    // South to center: tan to green
+                    const s = t * 2;
+                    r = 0.86 - s * (0.86 - 0.29);
+                    g = 0.82 - s * (0.82 - 0.48);
+                    b = 0.71 - s * (0.71 - 0.18);
+                } else {
+                    // Center to north: green to dark jungle green
+                    const s = (t - 0.5) * 2;
+                    r = 0.29 - s * (0.29 - 0.12);
+                    g = 0.48 - s * (0.48 - 0.29);
+                    b = 0.18 - s * (0.18 - 0.06);
+                }
+                gColor.setXYZ(i, r, g, b);
+            }
             grassGeo.computeVertexNormals();
-            const grassMat = new THREE.MeshPhongMaterial({ map: grassTex, shininess: 5 });
+            const grassMat = new THREE.MeshPhongMaterial({ map: grassTex, bumpMap: sandBumpTex, bumpScale: 0.2, shininess: 5, vertexColors: true });
             const grassMesh = new THREE.Mesh(grassGeo, grassMat);
             grassMesh.position.z = 0;
             grassMesh.receiveShadow = true;
@@ -975,6 +1131,34 @@
         scene.add(ocean);
         const oceanPositions = ocean.geometry.attributes.position.array.slice();
 
+        // Water shoreline gradient (shallow water zone between beach and ocean)
+        const shoreGeo = new THREE.PlaneGeometry(400, 20, 40, 4);
+        const shoreColor = shoreGeo.getAttribute('color') || new THREE.BufferAttribute(new Float32Array(shoreGeo.attributes.position.count * 3), 3);
+        shoreGeo.setAttribute('color', shoreColor);
+        // Beach side (Z = -150) nearly transparent, ocean side (Z = -170) more opaque
+        for (let i = 0; i < shoreGeo.attributes.position.count; i++) {
+            const z = shoreGeo.attributes.position.getZ(i);
+            const t = (z - (-150)) / (-170 - (-150));
+            const opacity = 0.05 + t * 0.3; // gradient from 0.05 to 0.35
+            const col = Math.floor(opacity * 255);
+            shoreColor.setXYZ(i, col / 255, col / 255, col / 255);
+        }
+        const shoreMat = new THREE.MeshPhongMaterial({
+            color: 0x44CCBB,
+            transparent: true,
+            opacity: 0.25,
+            shininess: 80,
+            specular: 0xCCEEFF,
+            vertexColors: true,
+            side: THREE.DoubleSide
+        });
+        const shoreMesh = new THREE.Mesh(shoreGeo, shoreMat);
+        shoreMesh.position.set(0, 0.05, -160);
+        shoreMesh.rotation.x = -Math.PI / 2;
+        shoreMesh.receiveShadow = true;
+        shoreMesh.userData.baseZ = -160;
+        scene.add(shoreMesh);
+
         // ============ CLOUDS ============
         function createClouds() {
             const group = new THREE.Group();
@@ -1026,7 +1210,7 @@
         // ============ PALM TREES ============
         function createPalmTree() {
             const group = new THREE.Group();
-            const barkMat = new THREE.MeshPhongMaterial({ map: barkTex, shininess: 10, specular: 0x221100 });
+            const barkMat = new THREE.MeshPhongMaterial({ map: barkTex, bumpMap: barkBumpTex, bumpScale: 0.3, shininess: 10, specular: 0x221100 });
 
             // Trunk — 12 segments for smooth organic curve
             let yOff = 0, lean = 0, leanX = 0;
@@ -1488,17 +1672,17 @@
         // These are the objects that Menehune can hide behind to disguise themselves
         // Each prop is detailed and uses procedural textures for maximum visual quality
         const propMaterials = {
-            surfboard: new THREE.MeshPhongMaterial({ color: 0xFF6B35, map: woodTex, shininess: 25 }),
+            surfboard: new THREE.MeshPhongMaterial({ color: 0xFF6B35, map: woodTex, bumpMap: woodBumpTex, bumpScale: 0.3, shininess: 25 }),
             umbrella: new THREE.MeshPhongMaterial({ color: 0xFF69B4, shininess: 30 }),
-            chair: new THREE.MeshPhongMaterial({ color: 0xA0826D, map: woodTex, shininess: 15 }),
-            barrel: new THREE.MeshPhongMaterial({ color: 0x8B5A2B, map: woodTex, shininess: 20 }),
-            rock: new THREE.MeshPhongMaterial({ color: 0x808080, map: stoneTex, shininess: 10 }),
+            chair: new THREE.MeshPhongMaterial({ color: 0xA0826D, map: woodTex, bumpMap: woodBumpTex, bumpScale: 0.3, shininess: 15 }),
+            barrel: new THREE.MeshPhongMaterial({ color: 0x8B5A2B, map: woodTex, bumpMap: woodBumpTex, bumpScale: 0.3, shininess: 20 }),
+            rock: new THREE.MeshPhongMaterial({ color: 0x808080, map: stoneTex, bumpMap: stoneBumpTex, bumpScale: 0.3, shininess: 10 }),
             cooler: new THREE.MeshPhongMaterial({ color: 0x1E90FF, shininess: 40 }),
             kayak: new THREE.MeshPhongMaterial({ color: 0xFFD700, shininess: 35 }),
-            crate: new THREE.MeshPhongMaterial({ color: 0x7B5B3A, map: woodTex, shininess: 12 }),
+            crate: new THREE.MeshPhongMaterial({ color: 0x7B5B3A, map: woodTex, bumpMap: woodBumpTex, bumpScale: 0.3, shininess: 12 }),
             hammock: new THREE.MeshPhongMaterial({ color: 0xE8D5B7, shininess: 8 }),
             lantern: new THREE.MeshPhongMaterial({ color: 0xCC4400, emissive: 0xFF6600, emissiveIntensity: 0.3, shininess: 30 }),
-            drum: new THREE.MeshPhongMaterial({ color: 0x6B3A2A, map: barkTex, shininess: 18 }),
+            drum: new THREE.MeshPhongMaterial({ color: 0x6B3A2A, map: barkTex, bumpMap: barkBumpTex, bumpScale: 0.3, shininess: 18 }),
             fishNet: new THREE.MeshPhongMaterial({ color: 0xBBAAAA, transparent: true, opacity: 0.7, shininess: 5 }),
         };
 
@@ -1792,6 +1976,53 @@
             return mesh;
         }
 
+        // Helper function to add vertex colors for weathering effect
+        function addPropWeathering(propMesh) {
+            propMesh.traverse(child => {
+                if (child.isMesh && child.geometry) {
+                    const geo = child.geometry;
+                    const posAttr = geo.attributes.position;
+                    if (!posAttr) return;
+
+                    // Create color attribute if it doesn't exist
+                    if (!geo.attributes.color) {
+                        const colors = new Float32Array(posAttr.count * 3);
+                        for (let i = 0; i < colors.length; i++) colors[i] = 1.0; // default white
+                        geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+                    }
+
+                    const colorAttr = geo.attributes.color;
+
+                    // Get bounding box to determine Y range
+                    geo.computeBoundingBox();
+                    const box = geo.boundingBox;
+                    const minY = box.min.y, maxY = box.max.y;
+                    const yRange = maxY - minY;
+
+                    // Apply weathering colors based on Y position
+                    for (let i = 0; i < posAttr.count; i++) {
+                        const y = posAttr.getY(i);
+                        const t = yRange > 0 ? (y - minY) / yRange : 0.5; // 0 at bottom, 1 at top
+
+                        // Bottom: darker (ground dirt/shadow, multiply by 0.6)
+                        // Top: lighter (sun bleaching, multiply by 1.1)
+                        const factor = 0.6 + t * (1.1 - 0.6);
+
+                        colorAttr.setXYZ(i, factor, factor, factor);
+                    }
+
+                    // Enable vertex colors on material
+                    if (child.material) {
+                        if (Array.isArray(child.material)) {
+                            child.material.forEach(mat => mat.vertexColors = true);
+                        } else {
+                            child.material.vertexColors = true;
+                        }
+                    }
+                }
+            });
+        }
+
         // Spawn 80 props across the expanded map — Menehune use these to hide
         for (let i = 0; i < 80; i++) {
             const mesh = createRandomProp();
@@ -1799,6 +2030,8 @@
             const z = -140 + Math.random() * 280;
             mesh.position.set(x, 0.5, z);
             mesh.rotation.y = Math.random() * Math.PI * 2;
+            // Add weathering vertex colors
+            addPropWeathering(mesh);
             scene.add(mesh);
             props.push({
                 mesh: mesh,
@@ -2242,6 +2475,13 @@
                 this.isEliminated = false;
                 this.hiddenPropIndex = null;
                 this.lastThrowTime = 0;
+                // Contact shadow (blob shadow under player)
+                const shadowGeo = new THREE.PlaneGeometry(1.2, 1.2);
+                const shadowMat = new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, opacity: 0.3, depthWrite: false });
+                this.shadow = new THREE.Mesh(shadowGeo, shadowMat);
+                this.shadow.position.y = 0.02;
+                this.shadow.rotation.x = -Math.PI / 2;
+                this.mesh.add(this.shadow);
                 scene.add(this.mesh);
             }
 
@@ -2283,18 +2523,22 @@
                     group.add(brow);
 
                     // Eyes — larger, more expressive
+                    this.eyes = [];
+                    this.pupils = [];
                     const eyeMat = new THREE.MeshPhongMaterial({ color: 0xFFFFF0, shininess: 60 });
                     const pupilMat = new THREE.MeshPhongMaterial({ color: 0x1A1A00, shininess: 80 });
                     const irisMat = new THREE.MeshPhongMaterial({ color: 0x4A3000, shininess: 40 });
                     for (let i of [-1, 1]) {
                         const eye = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 12), eyeMat);
                         eye.position.set(i * 0.12, 1.15, 0.22);
+                        this.eyes.push(eye);
                         group.add(eye);
                         const iris = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 10), irisMat);
                         iris.position.set(i * 0.12, 1.15, 0.28);
                         group.add(iris);
                         const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 8), pupilMat);
                         pupil.position.set(i * 0.12, 1.15, 0.31);
+                        this.pupils.push(pupil);
                         group.add(pupil);
                     }
 
@@ -2376,6 +2620,7 @@
                     group.add(pendant);
 
                     // Grass skirt — longer with more curve
+                    this.skirtStrips = [];
                     const skirtMat = new THREE.MeshPhongMaterial({ color: 0x4A7A2E, shininess: 8, side: THREE.DoubleSide });
                     for (let i = 0; i < 16; i++) {
                         const angle = (Math.PI * 2 / 16) * i;
@@ -2390,6 +2635,9 @@
                         strip.position.set(Math.cos(angle) * 0.27, 0.1, Math.sin(angle) * 0.27);
                         strip.rotation.y = -angle;
                         strip.castShadow = true;
+                        strip.userData.baseRot = -angle;
+                        strip.userData.stripIndex = i;
+                        this.skirtStrips.push(strip);
                         group.add(strip);
                     }
 
@@ -2522,10 +2770,13 @@
                     group.add(head);
 
                     // Eyes
+                    this.eyes = [];
+                    this.pupils = [];
                     const eyeMat = new THREE.MeshPhongMaterial({ color: 0xFFFFF0, shininess: 60 });
                     for (let i of [-1, 1]) {
                         const eye = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 12), eyeMat);
                         eye.position.set(i * 0.1, 1.35, 0.18);
+                        this.eyes.push(eye);
                         group.add(eye);
                         const iris = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 10),
                             new THREE.MeshPhongMaterial({ color: 0x3366AA, shininess: 40 }));
@@ -2534,6 +2785,7 @@
                         const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 8),
                             new THREE.MeshPhongMaterial({ color: 0x000000, shininess: 80 }));
                         pupil.position.set(i * 0.1, 1.35, 0.255);
+                        this.pupils.push(pupil);
                         group.add(pupil);
 
                         // Eyebrows
@@ -2768,6 +3020,51 @@
                     if (this.leftLeg) this.leftLeg.rotation.x = 0;
                     if (this.rightLeg) this.rightLeg.rotation.x = 0;
                 }
+
+                // Eye tracking and blinking animation
+                if (this.pupils && this.pupils.length > 0) {
+                    // Eye tracking: offset pupil Z based on movement direction
+                    const trackOffset = this.velocity.length() > 0.5 ? Math.sign(this.velocity.length()) * 0.01 : 0;
+                    this.pupils.forEach(pupil => {
+                        pupil.position.z = (this.role === 'menehune' ? 0.31 : 0.255) + trackOffset;
+                    });
+                }
+
+                // Blinking animation (every 3-5 seconds)
+                if (this.eyes && this.eyes.length > 0) {
+                    const blinkCycle = 4.0; // blink cycle in seconds
+                    const cyclePos = (this.animTime % blinkCycle) / blinkCycle;
+                    let blinkScale = 1.0;
+                    if (cyclePos > 0.9 && cyclePos < 0.95) {
+                        // Blink (0.05 of cycle = 0.2 seconds at 4 second cycle)
+                        const blinkPhase = (cyclePos - 0.9) / 0.05; // 0 to 1 during blink
+                        blinkScale = 1.0 - blinkPhase * 0.9; // closes to 0.1 height
+                    } else if (cyclePos > 0.95) {
+                        // Recover from blink
+                        const recoveryPhase = (cyclePos - 0.95) / 0.05;
+                        blinkScale = 0.1 + recoveryPhase * 0.9;
+                    }
+                    this.eyes.forEach(eye => {
+                        eye.scale.y = blinkScale;
+                    });
+                }
+
+                // Grass skirt physics animation (menehune only)
+                if (this.role === 'menehune' && this.skirtStrips && this.skirtStrips.length > 0) {
+                    if (this.isMoving) {
+                        // During movement: skirt sways based on velocity direction
+                        this.skirtStrips.forEach((strip, i) => {
+                            const baseRot = strip.userData.baseRot || 0;
+                            strip.rotation.x = baseRot + Math.sin(this.animTime * 6 + i * 0.5) * 0.3;
+                        });
+                    } else {
+                        // Idle: gentle sway
+                        this.skirtStrips.forEach((strip, i) => {
+                            const baseRot = strip.userData.baseRot || 0;
+                            strip.rotation.x = baseRot + Math.sin(this.animTime * 1.5 + i * 0.4) * 0.05;
+                        });
+                    }
+                }
             }
 
             hide(propIndex) {
@@ -2985,7 +3282,7 @@
             active: false,
             soloMode: false,
             startTime: 0,
-            timeLimit: 180
+            timeLimit: 300
         };
 
         // ============ GAME LOGIC ============
@@ -3113,11 +3410,14 @@
         const cameraState = { angle: 0, pitch: 0.3, touchId: null, lastX: 0, lastY: 0 };
 
         // Right-side touch for camera rotation
+        // Only preventDefault during active gameplay — otherwise lobby/end screen buttons won't work
         document.addEventListener('touchstart', (e) => {
-            e.preventDefault();
+            if (gameState.active) {
+                e.preventDefault();
+            }
             for (const touch of e.changedTouches) {
                 // Only capture touches on the right half of the screen (not on action button)
-                if (touch.clientX > window.innerWidth * 0.4 && cameraState.touchId === null) {
+                if (touch.clientX > window.innerWidth * 0.4 && cameraState.touchId === null && gameState.active) {
                     const actionBtn = document.getElementById('action-btn');
                     const btnRect = actionBtn.getBoundingClientRect();
                     // Avoid capturing touches on the action button
@@ -3131,7 +3431,9 @@
         }, { passive: false });
 
         document.addEventListener('touchmove', (e) => {
-            e.preventDefault();
+            if (gameState.active) {
+                e.preventDefault();
+            }
             for (const touch of e.changedTouches) {
                 if (touch.identifier === cameraState.touchId) {
                     const dx = touch.clientX - cameraState.lastX;
@@ -3379,7 +3681,7 @@
         // ============ BONFIRE ============
         function createBonfire() {
             const group = new THREE.Group();
-            const woodMat = new THREE.MeshPhongMaterial({ map: barkTex, shininess: 15 });
+            const woodMat = new THREE.MeshPhongMaterial({ map: barkTex, bumpMap: barkBumpTex, bumpScale: 0.3, shininess: 15 });
 
             // Logs
             for (let i = 0; i < 4; i++) {
@@ -3821,6 +4123,15 @@
             }
             pos.needsUpdate = true;
 
+            // Animate shoreline with subtle tide oscillation
+            if (shoreMesh && shoreMesh.userData.baseZ !== undefined) {
+                shoreMesh.position.z = shoreMesh.userData.baseZ + Math.sin(now * 0.0008) * 0.3;
+            }
+
+            // Animate ocean texture with drift and reflection
+            ocean.material.map.offset.x = Math.sin(now * 0.0003) * 0.1;
+            ocean.material.map.offset.y = now * 0.00005;
+
             // Animate clouds with drift
             clouds.children.forEach(cloud => {
                 cloud.position.x += cloud.userData.cloudSpeed;
@@ -3894,13 +4205,44 @@
                 }
             });
 
-            // Animate bonfire flames
+            // Animate bonfire flames with firelight flicker
+            const fireFl = 0.7 + Math.sin(now * 0.007) * 0.15 + Math.sin(now * 0.013) * 0.1;
             bonfire.children.forEach((mesh, i) => {
                 if (mesh.userData && mesh.userData.isFlame !== false) {
                     if (i >= 3 && i < 6) {
                         const flicker = 0.8 + Math.sin(now * 0.009 + i) * 0.3;
                         mesh.scale.set(flicker, flicker, flicker);
+                        // Apply flickering emissive intensity
+                        if (mesh.material) {
+                            mesh.material.emissiveIntensity = fireFl;
+                        }
                     }
+                }
+            });
+            // Modulate firelight intensity
+            if (bonfire.userData.fireLight) {
+                bonfire.userData.fireLight.intensity = 1.5 * fireFl;
+                // Animate firelight color between warm orange and deeper red
+                bonfire.userData.fireLight.color.setHSL(0.07 + Math.sin(now*0.005)*0.02, 0.9, 0.5 + fireFl * 0.15);
+            }
+            // Apply same effect to secondary bonfires
+            [bonfire2, bonfire3].forEach(fire => {
+                if (fire && fire.userData.fireLight) {
+                    fire.userData.fireLight.intensity = 1.5 * fireFl;
+                    fire.userData.fireLight.color.setHSL(0.07 + Math.sin(now*0.005)*0.02, 0.9, 0.5 + fireFl * 0.15);
+                }
+                if (fire) {
+                    fire.children.forEach((mesh, i) => {
+                        if (mesh.userData && mesh.userData.isFlame !== false) {
+                            if (i >= 3 && i < 6) {
+                                const flicker = 0.8 + Math.sin(now * 0.009 + i) * 0.3;
+                                mesh.scale.set(flicker, flicker, flicker);
+                                if (mesh.material) {
+                                    mesh.material.emissiveIntensity = fireFl;
+                                }
+                            }
+                        }
+                    });
                 }
             });
 
