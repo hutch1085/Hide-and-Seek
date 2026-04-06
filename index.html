@@ -10,12 +10,12 @@
             font-family: 'Arial', sans-serif;
             background: #1a1a1a;
             overflow: hidden;
-            touch-action: none;
         }
-        canvas { display: block; }
+        canvas { display: block; touch-action: none; }
 
         /* UI Overlays */
-        #lobby, #game-hud, #end-screen { position: absolute; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+        #lobby, #game-hud, #end-screen { position: absolute; width: 100%; height: 100%; display: none; align-items: center; justify-content: center; }
+        #lobby.visible, #game-hud.visible, #end-screen.visible { display: flex !important; }
         #lobby, #end-screen { z-index: 100; background: rgba(0,0,0,0.85); }
         #game-hud { z-index: 50; pointer-events: none; flex-direction: column; }
 
@@ -51,9 +51,10 @@
             transition: all 0.3s;
         }
 
-        .lobby-btn:hover { transform: scale(1.05); background: rgba(70, 50, 30, 0.9); }
+        .lobby-btn:hover, .lobby-btn:active { transform: scale(1.05); background: rgba(70, 50, 30, 0.9); }
+        .lobby-btn { -webkit-tap-highlight-color: rgba(212, 165, 116, 0.3); touch-action: manipulation; }
         .solo-btn { background: rgba(60, 100, 40, 0.8); color: #90EE90; border-color: #90EE90; }
-        .solo-btn:hover { background: rgba(80, 130, 50, 0.9); }
+        .solo-btn:hover, .solo-btn:active { background: rgba(80, 130, 50, 0.9); }
 
         .game-info {
             display: flex;
@@ -92,15 +93,13 @@
             margin-top: 10px;
         }
 
-        #game-hud.visible { display: flex !important; }
-        #game-hud:not(.visible) { display: none !important; }
+        /* game-hud visibility handled by unified .visible rule above */
 
         .end-container { background: rgba(20, 10, 20, 0.95); }
         .hunters-win { color: #FF6B35; }
         .menehune-win { color: #228B22; }
 
-        #end-screen { display: none; }
-        #end-screen.visible { display: flex !important; }
+        /* end-screen visibility handled by unified .visible rule above */
 
         .restart-btn {
             margin-top: 30px;
@@ -111,9 +110,11 @@
             border: none;
             border-radius: 8px;
             cursor: pointer;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: rgba(212, 165, 116, 0.3);
         }
 
-        .restart-btn:hover { background: #E8B88E; }
+        .restart-btn:hover, .restart-btn:active { background: #E8B88E; }
 
         #joystick-container {
             position: absolute;
@@ -850,11 +851,36 @@
             sCtx.arc(256, 210, 100, 0, Math.PI * 2);
             sCtx.fill();
 
-            // Add wispy clouds to the sky texture - multiple layers at different heights
+            // Stars near zenith — faint dots
+            sCtx.globalAlpha = 0.4;
+            for (let i = 0; i < 60; i++) {
+                const sx = Math.random() * 512;
+                const sy = Math.random() * 50; // only in the darkest upper zone
+                const sr = 0.3 + Math.random() * 0.8;
+                sCtx.fillStyle = '#eeeeff';
+                sCtx.beginPath();
+                sCtx.arc(sx, sy, sr, 0, Math.PI * 2);
+                sCtx.fill();
+            }
+
+            // High-altitude cirrus wisps (thin, stretched)
+            sCtx.globalAlpha = 0.06;
+            for (let i = 0; i < 20; i++) {
+                const cx = Math.random() * 512;
+                const cy = 15 + Math.random() * 40;
+                const cw = 60 + Math.random() * 120;
+                const ch = 2 + Math.random() * 4;
+                sCtx.fillStyle = '#ccccee';
+                sCtx.beginPath();
+                sCtx.ellipse(cx, cy, cw, ch, (Math.random() - 0.5) * 0.3, 0, Math.PI * 2);
+                sCtx.fill();
+            }
+
+            // Mid-level cumulus clouds
             sCtx.globalAlpha = 0.08;
             for (let i = 0; i < 35; i++) {
                 const cx = Math.random() * 512;
-                const cy = 30 + Math.random() * 60;  // Higher clouds
+                const cy = 40 + Math.random() * 60;
                 const cw = 40 + Math.random() * 100;
                 const ch = 6 + Math.random() * 14;
                 sCtx.fillStyle = '#ffffff';
@@ -862,17 +888,29 @@
                 sCtx.ellipse(cx, cy, cw, ch, 0, 0, Math.PI * 2);
                 sCtx.fill();
             }
+
+            // Lower clouds — thicker, sunset-tinted
             sCtx.globalAlpha = 0.14;
             for (let i = 0; i < 50; i++) {
                 const cx = Math.random() * 512;
-                const cy = 60 + Math.random() * 120;  // Lower cloud layer
+                const cy = 70 + Math.random() * 120;
                 const cw = 30 + Math.random() * 90;
                 const ch = 4 + Math.random() * 10;
-                sCtx.fillStyle = '#f0f0ff';
+                sCtx.fillStyle = cy > 150 ? '#ffddcc' : '#f0f0ff'; // sunset tint near horizon
                 sCtx.beginPath();
                 sCtx.ellipse(cx, cy, cw, ch, 0, 0, Math.PI * 2);
                 sCtx.fill();
             }
+
+            // Horizon haze band — warm atmospheric glow
+            sCtx.globalAlpha = 0.18;
+            const hazeGrad = sCtx.createLinearGradient(0, 200, 0, 256);
+            hazeGrad.addColorStop(0, 'rgba(255,180,120,0)');
+            hazeGrad.addColorStop(0.5, 'rgba(255,170,100,0.3)');
+            hazeGrad.addColorStop(1, 'rgba(255,140,80,0.5)');
+            sCtx.fillStyle = hazeGrad;
+            sCtx.fillRect(0, 200, 512, 56);
+
             sCtx.globalAlpha = 1;
             const skyTex = new THREE.CanvasTexture(skyCanvas);
             const skyMat = new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, fog: false });
@@ -987,36 +1025,46 @@
             const groundGroup = new THREE.Group();
 
             // Wide beach strip along south edge with natural dunes
-            const beachGeo = new THREE.PlaneGeometry(400, 60, 60, 30);
+            const beachGeo = new THREE.PlaneGeometry(400, 60, 80, 40);
             beachGeo.rotateX(-Math.PI / 2);
-            // Add vertex displacement for natural dunes (multi-frequency noise)
+            // 3-frequency noise for realistic dunes with micro ripples
             const bPos = beachGeo.attributes.position;
             for (let i = 0; i < bPos.count; i++) {
                 const x = bPos.getX(i), z = bPos.getZ(i);
-                // Multi-frequency noise for realistic dunes
-                const h = Math.sin(x * 0.02) * 0.4 + Math.cos(z * 0.015) * 0.35 +
-                         Math.sin(x * 0.08 + z * 0.06) * 0.15;
+                const h = Math.sin(x * 0.02) * 0.45 + Math.cos(z * 0.015) * 0.35
+                    + Math.sin(x * 0.08 + z * 0.06) * 0.18
+                    + Math.sin(x * 0.22 + z * 0.18) * 0.06; // micro wind ripples
                 bPos.setY(i, h);
             }
+            // Vertex colors: wet sand near shore, dry sand inland
+            const bColors = new Float32Array(bPos.count * 3);
+            for (let i = 0; i < bPos.count; i++) {
+                const z = bPos.getZ(i);
+                const wetness = Math.max(0, Math.min(1, (z + 30) / 30)); // 0=inland(dry), 1=shore(wet)
+                // Dry: warm tan (0.87,0.82,0.70), Wet: darker damp (0.65,0.58,0.45)
+                bColors[i*3]   = 0.87 - wetness * 0.22;
+                bColors[i*3+1] = 0.82 - wetness * 0.24;
+                bColors[i*3+2] = 0.70 - wetness * 0.25;
+            }
+            beachGeo.setAttribute('color', new THREE.BufferAttribute(bColors, 3));
             beachGeo.computeVertexNormals();
-            const beachMat = new THREE.MeshPhongMaterial({ map: sandTex, bumpMap: sandBumpTex, bumpScale: 0.3, shininess: 10 });
+            const beachMat = new THREE.MeshPhongMaterial({ map: sandTex, bumpMap: sandBumpTex, bumpScale: 0.3, shininess: 10, vertexColors: true });
             const beachMesh = new THREE.Mesh(beachGeo, beachMat);
             beachMesh.position.z = -130;
             beachMesh.receiveShadow = true;
             groundGroup.add(beachMesh);
 
             // Main grass field — center of the map
-            const grassGeo = new THREE.PlaneGeometry(400, 200, 60, 60);
+            const grassGeo = new THREE.PlaneGeometry(400, 200, 80, 80);
             grassGeo.rotateX(-Math.PI / 2);
-            // Interesting terrain with increased amplitude and second frequency layer
+            // 3-frequency terrain: rolling hills + medium bumps + micro clumps
             const gPos = grassGeo.attributes.position;
             for (let i = 0; i < gPos.count; i++) {
                 const x = gPos.getX(i), z = gPos.getZ(i);
-                // First frequency - larger hills
                 const h1 = Math.sin(x * 0.02) * 0.5 + Math.cos(z * 0.03) * 0.4;
-                // Second frequency - smaller details
                 const h2 = Math.sin(x * 0.08 + z * 0.1) * 0.25 + Math.cos(x * 0.06) * 0.15;
-                const h = h1 + h2;
+                const h3 = Math.sin(x * 0.2 + z * 0.25) * 0.07; // micro bumps (tufts/roots)
+                const h = h1 + h2 + h3;
                 gPos.setY(i, h);
             }
             // Add vertex colors for zone blending (Z-based gradient)
@@ -1052,34 +1100,57 @@
             grassMesh.receiveShadow = true;
             groundGroup.add(grassMesh);
 
-            // Dense jungle zone at the north with subtle undulation
-            const jungleGeo = new THREE.PlaneGeometry(400, 80, 60, 30);
+            // Dense jungle zone at the north with root-covered ground
+            const jungleGeo = new THREE.PlaneGeometry(400, 80, 70, 40);
             jungleGeo.rotateX(-Math.PI / 2);
-            // Add slight undulation to jungle ground
+            // Multi-frequency: gentle undulation + root bumps + leaf-litter micro noise
             const jPos = jungleGeo.attributes.position;
             for (let i = 0; i < jPos.count; i++) {
                 const x = jPos.getX(i), z = jPos.getZ(i);
-                const h = Math.sin(x * 0.03) * 0.2 + Math.cos(z * 0.04) * 0.15;
+                const h = Math.sin(x * 0.03) * 0.25 + Math.cos(z * 0.04) * 0.2
+                    + Math.sin(x * 0.12 + z * 0.1) * 0.1  // root bumps
+                    + Math.sin(x * 0.3) * Math.cos(z * 0.25) * 0.04; // leaf litter micro
                 jPos.setY(i, h);
             }
+            // Vertex colors for dappled shadow / mulch variation
+            const jColors = new Float32Array(jPos.count * 3);
+            for (let i = 0; i < jPos.count; i++) {
+                const x = jPos.getX(i), z = jPos.getZ(i);
+                const dapple = 0.7 + Math.sin(x * 0.15 + z * 0.12) * 0.15 + Math.random() * 0.1;
+                jColors[i*3]   = 0.12 * dapple;
+                jColors[i*3+1] = 0.29 * dapple;
+                jColors[i*3+2] = 0.06 * dapple;
+            }
+            jungleGeo.setAttribute('color', new THREE.BufferAttribute(jColors, 3));
             jungleGeo.computeVertexNormals();
-            const jungleMat = new THREE.MeshPhongMaterial({ map: grassTex, shininess: 5 });
+            const jungleMat = new THREE.MeshPhongMaterial({ map: grassTex, shininess: 5, vertexColors: true });
             jungleMat.color.set(0x1E4A0E);
             const jungleMesh = new THREE.Mesh(jungleGeo, jungleMat);
             jungleMesh.position.z = 140;
             jungleMesh.receiveShadow = true;
             groundGroup.add(jungleMesh);
 
-            // Volcanic rock area — east side
-            const volcGeo = new THREE.PlaneGeometry(80, 120, 30, 30);
+            // Volcanic rock area — east side with jagged basalt texture
+            const volcGeo = new THREE.PlaneGeometry(80, 120, 40, 40);
             volcGeo.rotateX(-Math.PI / 2);
             const vPos = volcGeo.attributes.position;
             for (let i = 0; i < vPos.count; i++) {
                 const x = vPos.getX(i), z = vPos.getZ(i);
-                vPos.setY(i, Math.sin(x * 0.08) * 0.5 + Math.cos(z * 0.06) * 0.4);
+                vPos.setY(i, Math.sin(x * 0.08) * 0.5 + Math.cos(z * 0.06) * 0.4
+                    + Math.sin(x * 0.2 + z * 0.18) * 0.2  // jagged basalt cracks
+                    + Math.random() * 0.05);  // micro roughness
             }
+            // Vertex colors: dark basalt with reddish oxidation patches
+            const vColors = new Float32Array(vPos.count * 3);
+            for (let i = 0; i < vPos.count; i++) {
+                const rust = Math.random() > 0.7 ? 0.15 : 0;
+                vColors[i*3]   = 0.22 + rust + Math.random() * 0.05;
+                vColors[i*3+1] = 0.20 + Math.random() * 0.04;
+                vColors[i*3+2] = 0.18 + Math.random() * 0.03;
+            }
+            volcGeo.setAttribute('color', new THREE.BufferAttribute(vColors, 3));
             volcGeo.computeVertexNormals();
-            const volcMat = new THREE.MeshPhongMaterial({ map: gravelTex, color: 0x4A4A4A, shininess: 8 });
+            const volcMat = new THREE.MeshPhongMaterial({ map: gravelTex, color: 0x4A4A4A, shininess: 8, vertexColors: true });
             const volcMesh = new THREE.Mesh(volcGeo, volcMat);
             volcMesh.position.set(160, 0.05, 40);
             volcMesh.receiveShadow = true;
@@ -1109,17 +1180,30 @@
 
         // ============ OCEAN ============
         function createOcean() {
-            const geo = new THREE.PlaneGeometry(600, 200, 100, 50);
+            const geo = new THREE.PlaneGeometry(600, 200, 120, 60);
+            // Depth color gradient — shallows are turquoise, deep water is dark blue
+            const oPos = geo.attributes.position;
+            const oColors = new Float32Array(oPos.count * 3);
+            for (let i = 0; i < oPos.count; i++) {
+                const y = oPos.getY(i); // in plane coords, Y = depth direction
+                const t = Math.max(0, Math.min(1, (y + 100) / 200)); // 0=near shore, 1=far
+                // Shallow: turquoise (0.2, 0.67, 0.6) → Deep: dark navy (0.08, 0.15, 0.35)
+                oColors[i*3]   = 0.20 - t * 0.12;
+                oColors[i*3+1] = 0.67 - t * 0.52;
+                oColors[i*3+2] = 0.60 - t * 0.25;
+            }
+            geo.setAttribute('color', new THREE.BufferAttribute(oColors, 3));
             const mat = new THREE.MeshPhongMaterial({
                 map: waterTex,
                 envMap: envMap,
                 transparent: true,
-                opacity: 0.78,
+                opacity: 0.8,
                 shininess: 180,
                 specular: 0xCCEEFF,
                 color: 0x33AA99,
                 reflectivity: 0.65,
                 combine: THREE.MixOperation,
+                vertexColors: true,
             });
             const mesh = new THREE.Mesh(geo, mat);
             mesh.rotation.x = -Math.PI / 2;
@@ -1132,7 +1216,7 @@
         const oceanPositions = ocean.geometry.attributes.position.array.slice();
 
         // Water shoreline gradient (shallow water zone between beach and ocean)
-        const shoreGeo = new THREE.PlaneGeometry(400, 20, 40, 4);
+        const shoreGeo = new THREE.PlaneGeometry(400, 20, 60, 10);
         const shoreColor = shoreGeo.getAttribute('color') || new THREE.BufferAttribute(new Float32Array(shoreGeo.attributes.position.count * 3), 3);
         shoreGeo.setAttribute('color', shoreColor);
         // Beach side (Z = -150) nearly transparent, ocean side (Z = -170) more opaque
@@ -1162,21 +1246,41 @@
         // ============ CLOUDS ============
         function createClouds() {
             const group = new THREE.Group();
-            for (let i = 0; i < 35; i++) {
+            // Low cumulus clouds — thick, warm-tinted near sunset
+            for (let i = 0; i < 25; i++) {
                 const cloudGroup = new THREE.Group();
-                const puffs = 4 + Math.floor(Math.random()*5);
+                const puffs = 5 + Math.floor(Math.random()*6);
                 const opacity = 0.5 + Math.random() * 0.3;
-                const mat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: opacity });
+                // Sunset-tinted bottom, brighter top
+                const topMat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: opacity });
+                const botMat = new THREE.MeshBasicMaterial({ color: 0xFFDDCC, transparent: true, opacity: opacity * 0.7 });
                 for (let j = 0; j < puffs; j++) {
-                    const geo = new THREE.SphereGeometry(2.5 + Math.random()*4, 10, 8);
-                    const mesh = new THREE.Mesh(geo, mat);
+                    const r = 2.5 + Math.random()*4;
+                    const geo = new THREE.SphereGeometry(r, 10, 8);
+                    const mesh = new THREE.Mesh(geo, j % 3 === 0 ? botMat : topMat);
                     mesh.scale.y = 0.25 + Math.random()*0.2;
                     mesh.scale.x = 0.8 + Math.random()*0.6;
-                    mesh.position.set(j*2.8 - puffs*1.2, Math.random()*0.8, Math.random()*3-1.5);
+                    mesh.position.set(j*2.8 - puffs*1.2, (Math.random()-0.3)*1.2, Math.random()*3-1.5);
                     cloudGroup.add(mesh);
                 }
-                cloudGroup.position.set((Math.random()-0.5)*600, 50+Math.random()*30, (Math.random()-0.5)*600);
+                cloudGroup.position.set((Math.random()-0.5)*600, 45+Math.random()*20, (Math.random()-0.5)*600);
                 cloudGroup.userData.cloudSpeed = Math.random() * 0.025 + 0.008;
+                group.add(cloudGroup);
+            }
+            // High wispy cirrus clouds — thin, fast, semi-transparent
+            for (let i = 0; i < 15; i++) {
+                const cloudGroup = new THREE.Group();
+                const wisps = 2 + Math.floor(Math.random()*3);
+                const mat = new THREE.MeshBasicMaterial({ color: 0xEEEEFF, transparent: true, opacity: 0.15 + Math.random() * 0.15 });
+                for (let j = 0; j < wisps; j++) {
+                    const geo = new THREE.SphereGeometry(3 + Math.random()*5, 8, 6);
+                    const mesh = new THREE.Mesh(geo, mat);
+                    mesh.scale.set(2 + Math.random(), 0.08 + Math.random()*0.06, 0.6 + Math.random()*0.4);
+                    mesh.position.set(j*6 - wisps*3, 0, Math.random()*2-1);
+                    cloudGroup.add(mesh);
+                }
+                cloudGroup.position.set((Math.random()-0.5)*700, 72+Math.random()*15, (Math.random()-0.5)*700);
+                cloudGroup.userData.cloudSpeed = Math.random() * 0.04 + 0.015; // faster
                 group.add(cloudGroup);
             }
             return group;
@@ -1248,23 +1352,38 @@
                 group.add(cocoTop);
             }
 
-            // Fronds — longer with more droop and varied green shades
+            // Crown shaft (smooth green section at top of trunk)
+            const crownShaft = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.14, 0.18, 0.5, 10),
+                new THREE.MeshPhongMaterial({ color: 0x3A7A2A, shininess: 25 })
+            );
+            crownShaft.position.y = yOff;
+            group.add(crownShaft);
+
+            // Fronds — longer with more droop, varied green shades, midrib detail
             const leafColors = [0x1B8C1B, 0x2A9A2A, 0x1A7A1A, 0x228C22];
             const leafMaterials = leafColors.map(col =>
                 new THREE.MeshPhongMaterial({ color: col, map: leafTex, side: THREE.DoubleSide, shininess: 20, specular: 0x114411 })
             );
+            const midribMat = new THREE.MeshPhongMaterial({ color: 0x4A6A2A, shininess: 12 });
             for (let i = 0; i < 12; i++) {
                 const angle = (Math.PI * 2 / 12) * i + Math.random() * 0.2;
                 const frondLen = 4.0 + Math.random() * 2.0;
-                const frondGeo = new THREE.PlaneGeometry(0.45, frondLen, 2, 10);
+                const frondGeo = new THREE.PlaneGeometry(0.45, frondLen, 3, 12);
                 const fpos = frondGeo.attributes.position;
                 for (let v = 0; v < fpos.count; v++) {
                     const vy = fpos.getY(v);
-                    const t = (vy + frondLen / 2) / frondLen; // 0 at base, 1 at tip
-                    // More pronounced drooping curve
+                    const vx = fpos.getX(v);
+                    const t = (vy + frondLen / 2) / frondLen;
+                    // Drooping curve
                     fpos.setZ(v, -t * t * frondLen * 0.18);
-                    // More tapering toward tip
-                    fpos.setX(v, fpos.getX(v) * (1 - t * 0.8));
+                    // Tapering toward tip
+                    fpos.setX(v, vx * (1 - t * 0.8));
+                    // Leaflet separation — zigzag the edges
+                    if (Math.abs(vx) > 0.1) {
+                        const leafletWave = Math.sin(vy * 6) * 0.03 * (Math.abs(vx) / 0.225);
+                        fpos.setZ(v, fpos.getZ(v) + leafletWave);
+                    }
                 }
                 frondGeo.computeVertexNormals();
                 const frond = new THREE.Mesh(frondGeo, leafMaterials[i % leafMaterials.length]);
@@ -1273,6 +1392,14 @@
                 frond.rotation.y = -angle;
                 frond.rotation.x = 0.4 + Math.random() * 0.5;
                 group.add(frond);
+                // Midrib (central vein on each frond)
+                const midrib = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.01, 0.005, frondLen * 0.85, 6),
+                    midribMat
+                );
+                midrib.position.copy(frond.position);
+                midrib.rotation.copy(frond.rotation);
+                group.add(midrib);
             }
 
             return group;
@@ -1333,17 +1460,31 @@
             body.position.y = 1.1;
             group.add(body);
 
-            // Shoulder carvings
+            // Shoulder carvings — tapered cylinders with elbow bend
             for (let s of [-1, 1]) {
-                const arm = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.6, 0.2), stoneMat);
-                arm.position.set(s * 0.38, 1.3, 0);
-                arm.rotation.z = s * 0.15;
-                arm.castShadow = true;
-                group.add(arm);
-                // Hand
-                const hand = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), stoneMat);
-                hand.position.set(s * 0.4, 0.95, 0.15);
+                // Upper arm
+                const upperArm = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 0.35, 8), stoneMat);
+                upperArm.position.set(s * 0.38, 1.45, 0);
+                upperArm.rotation.z = s * 0.25;
+                upperArm.castShadow = true;
+                group.add(upperArm);
+                // Forearm (angled forward)
+                const forearm = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.3, 8), stoneMat);
+                forearm.position.set(s * 0.42, 1.15, 0.1);
+                forearm.rotation.x = -0.4;
+                forearm.rotation.z = s * 0.1;
+                group.add(forearm);
+                // Hand with fingers
+                const hand = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), stoneMat);
+                hand.position.set(s * 0.42, 0.98, 0.18);
+                hand.scale.set(1, 0.7, 1.2);
                 group.add(hand);
+                // Finger bumps
+                for (let f = 0; f < 3; f++) {
+                    const finger = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 8), stoneMat);
+                    finger.position.set(s * 0.42 + (f - 1) * 0.025, 0.94, 0.22);
+                    group.add(finger);
+                }
             }
 
             // Head — larger and more imposing
@@ -1366,20 +1507,39 @@
             }
             // Eye glow light — added conditionally per-statue for mobile perf
 
-            // Wide carved mouth with teeth
+            // Wide carved mouth — recessed cavity with teeth
+            const mouthCavity = new THREE.Mesh(
+                new THREE.BoxGeometry(0.32, 0.16, 0.12),
+                new THREE.MeshPhongMaterial({ color: 0x1A0800, shininess: 2 })
+            );
+            mouthCavity.position.set(0, 2.1, 0.3);
+            group.add(mouthCavity);
+            // Mouth frame/lips
             const mouthFrame = new THREE.Mesh(
-                new THREE.BoxGeometry(0.35, 0.18, 0.1),
+                new THREE.BoxGeometry(0.38, 0.2, 0.06),
                 darkStoneMat
             );
-            mouthFrame.position.set(0, 2.1, 0.32);
+            mouthFrame.position.set(0, 2.1, 0.35);
             group.add(mouthFrame);
-            // Teeth
+            // Upper teeth (pointed, varied)
+            const toothMat = new THREE.MeshPhongMaterial({ color: 0xDDDDBB, shininess: 20 });
+            for (let t = 0; t < 5; t++) {
+                const tw = 0.04 + Math.random() * 0.02;
+                const tooth = new THREE.Mesh(
+                    new THREE.ConeGeometry(tw / 2, 0.06, 4),
+                    toothMat
+                );
+                tooth.position.set(-0.12 + t * 0.06, 2.16, 0.36);
+                tooth.rotation.x = Math.PI;
+                group.add(tooth);
+            }
+            // Lower teeth
             for (let t = 0; t < 4; t++) {
                 const tooth = new THREE.Mesh(
-                    new THREE.BoxGeometry(0.06, 0.06, 0.04),
-                    new THREE.MeshPhongMaterial({ color: 0xDDDDBB, shininess: 20 })
+                    new THREE.ConeGeometry(0.02, 0.05, 4),
+                    toothMat
                 );
-                tooth.position.set(-0.1 + t * 0.07, 2.15, 0.36);
+                tooth.position.set(-0.09 + t * 0.06, 2.04, 0.36);
                 group.add(tooth);
             }
 
@@ -1398,10 +1558,29 @@
             spike.castShadow = true;
             group.add(spike);
 
-            // Nose
-            const nose = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.12, 0.12), stoneMat);
-            nose.position.set(0, 2.28, 0.35);
+            // Nose — wider, flared, with nostrils
+            const noseGeo = new THREE.BoxGeometry(0.12, 0.14, 0.14, 2, 2, 2);
+            const np = noseGeo.attributes.position;
+            for (let v = 0; v < np.count; v++) {
+                // Flare bottom outward
+                if (np.getY(v) < 0) {
+                    np.setX(v, np.getX(v) * 1.3);
+                    np.setZ(v, np.getZ(v) * 1.2);
+                }
+            }
+            noseGeo.computeVertexNormals();
+            const nose = new THREE.Mesh(noseGeo, stoneMat);
+            nose.position.set(0, 2.28, 0.38);
             group.add(nose);
+            // Nostrils (dark recessed dots)
+            for (let ns of [-1, 1]) {
+                const nostril = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.025, 8, 8),
+                    new THREE.MeshPhongMaterial({ color: 0x1A1000, shininess: 2 })
+                );
+                nostril.position.set(ns * 0.04, 2.24, 0.44);
+                group.add(nostril);
+            }
 
             return group;
         }
@@ -1429,7 +1608,17 @@
             const darkWoodMat = new THREE.MeshPhongMaterial({ color: 0x5A3A1A, map: woodTex, shininess: 15 });
 
             // Raised floor with planks
-            const floorGeo = new THREE.BoxGeometry(3.8, 0.15, 3.2);
+            const floorGeo = new THREE.BoxGeometry(3.8, 0.15, 3.2, 16, 1, 12);
+            // Add plank-like grooves to floor surface
+            const flp = floorGeo.attributes.position;
+            for (let i = 0; i < flp.count; i++) {
+                if (flp.getY(i) > 0.06) {
+                    const z = flp.getZ(i);
+                    const plankWarp = Math.sin(z * 8) * 0.003 + (Math.random() - 0.5) * 0.003;
+                    flp.setY(i, flp.getY(i) + plankWarp);
+                }
+            }
+            floorGeo.computeVertexNormals();
             const floorMesh = new THREE.Mesh(floorGeo, woodMat);
             floorMesh.castShadow = true;
             floorMesh.receiveShadow = true;
@@ -1461,9 +1650,15 @@
                 group.add(pole);
             }
 
-            // Cross beams connecting poles
+            // Cross beams connecting poles — with slight natural warp
             for (let z of [-1.3, 1.3]) {
-                const beam = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.1, 0.1), woodMat);
+                const beamGeo = new THREE.BoxGeometry(3.2, 0.1, 0.1, 10, 1, 1);
+                const bmp = beamGeo.attributes.position;
+                for (let i = 0; i < bmp.count; i++) {
+                    bmp.setY(i, bmp.getY(i) + Math.sin(bmp.getX(i) * 1.5) * 0.012);
+                }
+                beamGeo.computeVertexNormals();
+                const beam = new THREE.Mesh(beamGeo, woodMat);
                 beam.position.set(0, 2.7, z);
                 beam.castShadow = true;
                 group.add(beam);
@@ -1483,51 +1678,165 @@
             roofUnderlay.position.y = 3.0;
             group.add(roofUnderlay);
 
-            // Roof ridge detail at the peak
-            const ridgeGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.4, 6);
+            // Roof ridge detail at the peak (bound bundle with lashing)
+            const ridgeGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.4, 10, 4);
+            // Add straw-like bumps to the ridge
+            const rp = ridgeGeo.attributes.position;
+            for (let i = 0; i < rp.count; i++) {
+                const r = Math.sqrt(rp.getX(i)**2 + rp.getZ(i)**2);
+                if (r > 0.08) {
+                    const bump = Math.sin(rp.getY(i) * 20) * 0.008;
+                    rp.setX(i, rp.getX(i) * (1 + bump));
+                    rp.setZ(i, rp.getZ(i) * (1 + bump));
+                }
+            }
+            ridgeGeo.computeVertexNormals();
             const ridge = new THREE.Mesh(ridgeGeo, thatchMat);
             ridge.position.y = 4.95;
             ridge.rotation.z = Math.PI / 2;
             ridge.castShadow = true;
             group.add(ridge);
+            // Lashing wraps around ridge
+            for (let lw = 0; lw < 3; lw++) {
+                const lash = new THREE.Mesh(
+                    new THREE.TorusGeometry(0.13, 0.01, 4, 10),
+                    new THREE.MeshPhongMaterial({ color: 0x6A5A3A, shininess: 8 })
+                );
+                lash.position.set(0, 4.95, 0);
+                lash.rotation.set(Math.PI / 2, 0, lw * 0.5 - 0.5);
+                group.add(lash);
+            }
+            // Ridge cap ornament
+            const ridgeCap = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), thatchMat);
+            ridgeCap.position.y = 5.0;
+            group.add(ridgeCap);
 
-            // Roof overhang ring
+            // Thatch bundle strips along roof (adds visual texture)
+            const bundleMat = new THREE.MeshPhongMaterial({ color: 0x9B8B5A, shininess: 5 });
+            for (let tb = 0; tb < 12; tb++) {
+                const tbAngle = (tb / 12) * Math.PI * 2;
+                const bundle = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.06, 0.08, 2.0, 8),
+                    bundleMat
+                );
+                const bx = Math.cos(tbAngle) * 1.8;
+                const bz = Math.sin(tbAngle) * 1.8;
+                bundle.position.set(bx, 3.3, bz);
+                bundle.rotation.z = Math.cos(tbAngle) * 0.65;
+                bundle.rotation.x = -Math.sin(tbAngle) * 0.65;
+                group.add(bundle);
+            }
+
+            // Roof overhang ring with fringe
             const overhang = new THREE.Mesh(
-                new THREE.TorusGeometry(2.9, 0.08, 6, 20),
+                new THREE.TorusGeometry(2.9, 0.1, 6, 24),
                 thatchMat
             );
             overhang.position.y = 2.8;
             overhang.rotation.x = Math.PI / 2;
             overhang.castShadow = true;
             group.add(overhang);
+            // Hanging thatch fringe around overhang
+            for (let fr = 0; fr < 20; fr++) {
+                const frAngle = (fr / 20) * Math.PI * 2;
+                const fringe = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.02, 0.008, 0.2 + Math.random() * 0.15, 6),
+                    bundleMat
+                );
+                fringe.position.set(Math.cos(frAngle) * 2.9, 2.65, Math.sin(frAngle) * 2.9);
+                group.add(fringe);
+            }
 
-            // Bar counter
-            const bar = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.12, 0.6), woodMat);
+            // Bar counter — planked top with edge wear
+            const barGeo = new THREE.BoxGeometry(2.2, 0.12, 0.6, 12, 1, 4);
+            const bcp = barGeo.attributes.position;
+            for (let i = 0; i < bcp.count; i++) {
+                if (bcp.getY(i) > 0.05) {
+                    bcp.setY(i, bcp.getY(i) + (Math.random() - 0.5) * 0.008);
+                }
+            }
+            barGeo.computeVertexNormals();
+            const bar = new THREE.Mesh(barGeo, woodMat);
             bar.position.set(0, 1.0, 1.3);
             bar.castShadow = true;
             group.add(bar);
-            // Bar front panel
-            const barFront = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.65, 0.08), darkWoodMat);
+            // Bar plank grooves (dark lines on top)
+            for (let pg = 0; pg < 4; pg++) {
+                const groove = new THREE.Mesh(
+                    new THREE.BoxGeometry(2.18, 0.005, 0.008),
+                    new THREE.MeshPhongMaterial({ color: 0x2A1A0A, shininess: 5 })
+                );
+                groove.position.set(0, 1.065, 1.1 + pg * 0.13);
+                group.add(groove);
+            }
+            // Bar front panel with vertical slat lines
+            const barFrontGeo = new THREE.BoxGeometry(2.2, 0.65, 0.08, 10, 4, 1);
+            const bfp = barFrontGeo.attributes.position;
+            for (let i = 0; i < bfp.count; i++) {
+                if (Math.abs(bfp.getZ(i)) > 0.03) {
+                    bfp.setZ(i, bfp.getZ(i) + (Math.random() - 0.5) * 0.005);
+                }
+            }
+            barFrontGeo.computeVertexNormals();
+            const barFront = new THREE.Mesh(barFrontGeo, darkWoodMat);
             barFront.position.set(0, 0.65, 1.55);
             barFront.castShadow = true;
             group.add(barFront);
 
-            // Bar stools — 3 along the counter
+            // Bar stools — 3 along the counter with braces and footrest ring
             for (let s = 0; s < 3; s++) {
-                const stoolBase = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.06, 0.6, 8), darkWoodMat);
-                stoolBase.position.set(-0.7 + s * 0.7, 0.6, 1.9);
+                const sx = -0.7 + s * 0.7;
+                // Central leg
+                const stoolBase = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.6, 8), darkWoodMat);
+                stoolBase.position.set(sx, 0.6, 1.9);
                 stoolBase.castShadow = true;
                 group.add(stoolBase);
-                const stoolSeat = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.16, 0.06, 12), woodMat);
-                stoolSeat.position.set(-0.7 + s * 0.7, 0.93, 1.9);
+                // Seat (slightly concave)
+                const seatGeo = new THREE.CylinderGeometry(0.18, 0.16, 0.05, 12);
+                const seP = seatGeo.attributes.position;
+                for (let v = 0; v < seP.count; v++) {
+                    if (seP.getY(v) > 0.01) {
+                        const r = Math.sqrt(seP.getX(v) ** 2 + seP.getZ(v) ** 2);
+                        seP.setY(v, seP.getY(v) - r * r * 0.3);
+                    }
+                }
+                seatGeo.computeVertexNormals();
+                const stoolSeat = new THREE.Mesh(seatGeo, woodMat);
+                stoolSeat.position.set(sx, 0.93, 1.9);
                 stoolSeat.castShadow = true;
                 group.add(stoolSeat);
+                // Support braces (3 angled legs)
+                for (let b = 0; b < 3; b++) {
+                    const bAngle = (b / 3) * Math.PI * 2;
+                    const brace = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.02, 0.35, 8), darkWoodMat);
+                    brace.position.set(sx + Math.cos(bAngle) * 0.08, 0.45, 1.9 + Math.sin(bAngle) * 0.08);
+                    brace.rotation.z = Math.cos(bAngle) * 0.3;
+                    brace.rotation.x = -Math.sin(bAngle) * 0.3;
+                    group.add(brace);
+                }
+                // Footrest ring
+                const footRing = new THREE.Mesh(
+                    new THREE.TorusGeometry(0.12, 0.012, 6, 12),
+                    darkWoodMat
+                );
+                footRing.position.set(sx, 0.4, 1.9);
+                footRing.rotation.x = Math.PI / 2;
+                group.add(footRing);
             }
 
-            // Hanging decorations — string of shells along beam
+            // Hanging decorations — string of shells along beam (with ridges)
             const shellMat = new THREE.MeshPhongMaterial({ color: 0xFFF5E1, shininess: 40 });
             for (let d = 0; d < 7; d++) {
-                const shell = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), shellMat);
+                const shGeo = new THREE.SphereGeometry(0.06, 10, 10);
+                const shp = shGeo.attributes.position;
+                for (let v = 0; v < shp.count; v++) {
+                    const theta = Math.atan2(shp.getX(v), shp.getZ(v));
+                    const ridge = 1 + Math.sin(theta * 6) * 0.12;
+                    shp.setX(v, shp.getX(v) * ridge);
+                    shp.setZ(v, shp.getZ(v) * ridge);
+                }
+                shGeo.computeVertexNormals();
+                const shell = new THREE.Mesh(shGeo, shellMat);
                 shell.scale.y = 0.6;
                 shell.position.set(-1.2 + d * 0.4, 2.5 + Math.sin(d * 0.9) * 0.1, 0);
                 shell.castShadow = true;
@@ -1535,29 +1844,86 @@
             }
             // String connecting shells
             const stringMat = new THREE.MeshPhongMaterial({ color: 0x8B7355, shininess: 5 });
-            const string = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 2.8, 4), stringMat);
+            const string = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 2.8, 6), stringMat);
             string.rotation.z = Math.PI / 2;
             string.position.set(0, 2.55, 0);
             group.add(string);
 
-            // Tiki masks on poles — carved faces
+            // Tiki masks on poles — carved with eye sockets, brow, nose, mouth cavity, teeth
             for (let s of [-1.6, 1.6]) {
                 const maskMat = new THREE.MeshPhongMaterial({ color: 0x6B4226, map: woodTex, shininess: 12 });
-                const mask = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.35, 0.08), maskMat);
+                // Oval mask face
+                const maskGeo = new THREE.BoxGeometry(0.28, 0.38, 0.1, 3, 4, 2);
+                const mkP = maskGeo.attributes.position;
+                for (let v = 0; v < mkP.count; v++) {
+                    const mx = mkP.getX(v), my = mkP.getY(v);
+                    // Round the corners
+                    const dist = Math.sqrt((mx / 0.14) ** 2 + (my / 0.19) ** 2);
+                    if (dist > 0.9) {
+                        const scale = 0.9 / dist;
+                        mkP.setX(v, mx * scale);
+                        mkP.setY(v, my * scale);
+                    }
+                    // Convex face bulge
+                    if (mkP.getZ(v) > 0) {
+                        mkP.setZ(v, mkP.getZ(v) + (1 - dist * 0.8) * 0.03);
+                    }
+                }
+                maskGeo.computeVertexNormals();
+                const mask = new THREE.Mesh(maskGeo, maskMat);
                 mask.position.set(s, 1.8, 0);
                 mask.castShadow = true;
                 group.add(mask);
-                // Mask eyes
+                // Brow ridge — curved for carved look
+                const browGeo = new THREE.BoxGeometry(0.22, 0.03, 0.04, 6, 1, 1);
+                const brp = browGeo.attributes.position;
+                for (let v = 0; v < brp.count; v++) {
+                    const bx = brp.getX(v);
+                    brp.setZ(v, brp.getZ(v) + (0.11*0.11 - bx*bx) * 0.3);
+                }
+                browGeo.computeVertexNormals();
+                const brow = new THREE.Mesh(browGeo, maskMat);
+                brow.position.set(s, 1.88, 0.06);
+                group.add(brow);
+                // Eye sockets (recessed)
                 const mEyeMat = new THREE.MeshPhongMaterial({ color: 0xFF6600, emissive: 0xFF4400, emissiveIntensity: 0.5 });
                 for (let e of [-1, 1]) {
-                    const mEye = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 6), mEyeMat);
-                    mEye.position.set(s + e * 0.06, 1.84, 0.05);
+                    const socket = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8),
+                        new THREE.MeshPhongMaterial({ color: 0x2A1206, shininess: 2 }));
+                    socket.position.set(s + e * 0.06, 1.84, 0.04);
+                    group.add(socket);
+                    const mEye = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 8), mEyeMat);
+                    mEye.position.set(s + e * 0.06, 1.84, 0.06);
                     group.add(mEye);
                 }
-                // Mask mouth
-                const mMouth = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.06, 0.04), new THREE.MeshPhongMaterial({ color: 0x3A1A0A }));
-                mMouth.position.set(s, 1.72, 0.05);
-                group.add(mMouth);
+                // Nose ridge — tapered carved shape
+                const noseGeo = new THREE.BoxGeometry(0.04, 0.08, 0.05, 2, 4, 2);
+                const np = noseGeo.attributes.position;
+                for (let v = 0; v < np.count; v++) {
+                    // Taper toward bottom
+                    const ty = (np.getY(v) + 0.04) / 0.08;
+                    np.setX(v, np.getX(v) * (0.7 + ty * 0.3));
+                    // Round the front
+                    if (np.getZ(v) > 0.02) {
+                        np.setZ(v, np.getZ(v) + 0.008);
+                    }
+                }
+                noseGeo.computeVertexNormals();
+                const mNose = new THREE.Mesh(noseGeo, maskMat);
+                mNose.position.set(s, 1.79, 0.06);
+                group.add(mNose);
+                // Mouth cavity + teeth
+                const mMouthCavity = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.05, 0.04),
+                    new THREE.MeshPhongMaterial({ color: 0x1A0800, shininess: 2 }));
+                mMouthCavity.position.set(s, 1.72, 0.04);
+                group.add(mMouthCavity);
+                // Small teeth
+                for (let t = 0; t < 3; t++) {
+                    const mt = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.02, 0.02),
+                        new THREE.MeshPhongMaterial({ color: 0xDDDDBB, shininess: 15 }));
+                    mt.position.set(s - 0.035 + t * 0.035, 1.735, 0.06);
+                    group.add(mt);
+                }
             }
 
             return group;
@@ -1590,50 +1956,79 @@
         function createTikiTorch() {
             const group = new THREE.Group();
             const poleMat = new THREE.MeshPhongMaterial({ map: woodTex, shininess: 20 });
-            const poleGeo = new THREE.CylinderGeometry(0.1, 0.1, 1.8, 12);
+            // Tapered pole with bamboo-like segment rings
+            const poleGeo = new THREE.CylinderGeometry(0.08, 0.12, 1.8, 10, 8);
+            const pp = poleGeo.attributes.position;
+            for (let v = 0; v < pp.count; v++) {
+                const y = pp.getY(v);
+                // Bamboo segment bulges
+                const segBulge = 1 + Math.pow(Math.sin(y * 8), 8) * 0.06;
+                pp.setX(v, pp.getX(v) * segBulge);
+                pp.setZ(v, pp.getZ(v) * segBulge);
+            }
+            poleGeo.computeVertexNormals();
             const poleMesh = new THREE.Mesh(poleGeo, poleMat);
             poleMesh.castShadow = true;
             poleMesh.position.y = 0.9;
             group.add(poleMesh);
 
-            // Torch bowl/cup at the top (torus shape)
+            // Torch bowl/cup — open top with rim and interior
             const bowlMat = new THREE.MeshPhongMaterial({ color: 0x8B6F47, shininess: 30 });
-            const bowlGeo = new THREE.CylinderGeometry(0.22, 0.2, 0.12, 12);
+            const bowlGeo = new THREE.CylinderGeometry(0.22, 0.18, 0.14, 12, 1, true); // open-ended
             const bowl = new THREE.Mesh(bowlGeo, bowlMat);
             bowl.castShadow = true;
-            bowl.position.y = 1.88;
+            bowl.position.y = 1.87;
             group.add(bowl);
+            // Bowl rim
+            const rimGeo = new THREE.TorusGeometry(0.22, 0.02, 6, 14);
+            const rim = new THREE.Mesh(rimGeo, bowlMat);
+            rim.position.y = 1.94;
+            rim.rotation.x = Math.PI / 2;
+            group.add(rim);
+            // Bowl bottom (dark fuel surface)
+            const fuelDisc = new THREE.Mesh(
+                new THREE.CircleGeometry(0.18, 12),
+                new THREE.MeshPhongMaterial({ color: 0x1A0A00, shininess: 2 })
+            );
+            fuelDisc.position.y = 1.81;
+            fuelDisc.rotation.x = -Math.PI / 2;
+            group.add(fuelDisc);
 
-            // Varied flame shapes with different scales on x/y/z
-            const flameMat1 = new THREE.MeshPhongMaterial({ color: 0xFFDD00, emissive: 0xFFAA00, emissiveIntensity: 0.7 });
-            const flameGeo1 = new THREE.SphereGeometry(0.2, 8, 8);
+            // Tapered flame cones instead of spheres (more realistic)
+            const flameMat1 = new THREE.MeshPhongMaterial({ color: 0xFFDD00, emissive: 0xFFAA00, emissiveIntensity: 0.7, transparent: true, opacity: 0.9 });
+            const flameGeo1 = new THREE.ConeGeometry(0.16, 0.35, 8);
             const flameMesh1 = new THREE.Mesh(flameGeo1, flameMat1);
             flameMesh1.scale.set(1.1, 1.0, 0.9);
             flameMesh1.position.y = 2.0;
             group.add(flameMesh1);
 
-            const flameMat2 = new THREE.MeshPhongMaterial({ color: 0xFF8800, emissive: 0xFF6600, emissiveIntensity: 0.8 });
-            const flameGeo2 = new THREE.SphereGeometry(0.15, 8, 8);
+            const flameMat2 = new THREE.MeshPhongMaterial({ color: 0xFF8800, emissive: 0xFF6600, emissiveIntensity: 0.8, transparent: true, opacity: 0.85 });
+            const flameGeo2 = new THREE.ConeGeometry(0.1, 0.3, 8);
             const flameMesh2 = new THREE.Mesh(flameGeo2, flameMat2);
             flameMesh2.scale.set(0.9, 1.1, 1.0);
             flameMesh2.position.y = 2.25;
             group.add(flameMesh2);
 
-            const flameMat3 = new THREE.MeshPhongMaterial({ color: 0xFF4400, emissive: 0xFF2200, emissiveIntensity: 0.9 });
-            const flameGeo3 = new THREE.SphereGeometry(0.1, 8, 8);
+            const flameMat3 = new THREE.MeshPhongMaterial({ color: 0xFF4400, emissive: 0xFF2200, emissiveIntensity: 0.9, transparent: true, opacity: 0.75 });
+            const flameGeo3 = new THREE.ConeGeometry(0.06, 0.22, 6);
             const flameMesh3 = new THREE.Mesh(flameGeo3, flameMat3);
             flameMesh3.scale.set(1.0, 0.9, 1.1);
             flameMesh3.position.y = 2.45;
             group.add(flameMesh3);
 
-            // Light added conditionally — see torch creation loops
+            // Heat shimmer wisp (tiny elongated cone at tip)
+            const wispMat = new THREE.MeshPhongMaterial({ color: 0xFF2200, emissive: 0xFF0000, emissiveIntensity: 0.6, transparent: true, opacity: 0.4 });
+            const wisp = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.15, 4), wispMat);
+            wisp.position.y = 2.6;
+            group.add(wisp);
 
             group.flameIndex = 0;
-            group.flameMeshes = [flameMesh1, flameMesh2, flameMesh3];
+            group.flameMeshes = [flameMesh1, flameMesh2, flameMesh3, wisp];
             group.userData.baseScales = [
                 [1.1, 1.0, 0.9],
                 [0.9, 1.1, 1.0],
-                [1.0, 0.9, 1.1]
+                [1.0, 0.9, 1.1],
+                [1.0, 1.0, 1.0]
             ];
             return group;
         }
@@ -1695,18 +2090,29 @@
             let mesh;
 
             if (type === 'surfboard') {
-                // Surfboard — shaped hull with fin and stripe
+                // Surfboard — shaped hull with rocker, rails, fin, stripe, leash plug
                 mesh = new THREE.Group();
-                const boardGeo = new THREE.BoxGeometry(0.5, 0.1, 2.2, 4, 1, 8);
-                // Round the nose and tail
+                const boardGeo = new THREE.BoxGeometry(0.5, 0.12, 2.2, 6, 2, 14);
                 const bp = boardGeo.attributes.position;
                 for (let v = 0; v < bp.count; v++) {
                     const z = bp.getZ(v);
                     const x = bp.getX(v);
-                    const taper = 1 - Math.pow(Math.abs(z) / 1.1, 2) * 0.6;
-                    bp.setX(v, x * Math.max(0.2, taper));
-                    // Slight curve upward at nose
-                    if (z > 0.8) bp.setY(v, bp.getY(v) + (z - 0.8) * 0.15);
+                    const y = bp.getY(v);
+                    // Planform taper (nose narrower than tail)
+                    const noseT = z > 0 ? 1 - Math.pow(z / 1.1, 2) * 0.7 : 1 - Math.pow(z / 1.1, 2) * 0.45;
+                    bp.setX(v, x * Math.max(0.15, noseT));
+                    // Rocker curve (nose kicks up, slight tail lift)
+                    let rocker = 0;
+                    if (z > 0.6) rocker = Math.pow((z - 0.6) / 0.5, 2) * 0.18;
+                    if (z < -0.7) rocker = Math.pow((-0.7 - z) / 0.4, 2) * 0.06;
+                    bp.setY(v, y + rocker);
+                    // Rail edge — thin the edges (convex rail profile)
+                    const absX = Math.abs(bp.getX(v));
+                    const halfW = 0.25 * Math.max(0.15, noseT);
+                    if (absX > halfW * 0.5) {
+                        const edgeFactor = (absX - halfW * 0.5) / (halfW * 0.5);
+                        bp.setY(v, bp.getY(v) * (1 - edgeFactor * 0.4));
+                    }
                 }
                 boardGeo.computeVertexNormals();
                 const board = new THREE.Mesh(boardGeo, propMaterials.surfboard);
@@ -1714,259 +2120,787 @@
                 mesh.add(board);
                 // Center stripe
                 const stripe = new THREE.Mesh(
-                    new THREE.BoxGeometry(0.08, 0.11, 1.8),
+                    new THREE.BoxGeometry(0.06, 0.13, 1.6),
                     new THREE.MeshPhongMaterial({ color: 0xFFFFFF, shininess: 30 })
                 );
                 stripe.position.y = 0.01;
                 mesh.add(stripe);
-                // Fin
-                const finGeo = new THREE.BoxGeometry(0.06, 0.2, 0.2);
+                // Pin stripe accent
+                const pin = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.015, 0.131, 1.5),
+                    new THREE.MeshPhongMaterial({ color: 0xFF5500, shininess: 20 })
+                );
+                pin.position.set(0.045, 0.01, 0);
+                mesh.add(pin);
+                const pin2 = pin.clone();
+                pin2.position.set(-0.045, 0.01, 0);
+                mesh.add(pin2);
+                // Curved fin (tapered blade shape)
+                const finGeo = new THREE.BoxGeometry(0.04, 0.22, 0.18, 1, 4, 3);
+                const fp = finGeo.attributes.position;
+                for (let v = 0; v < fp.count; v++) {
+                    const fy = fp.getY(v);
+                    const fz = fp.getZ(v);
+                    // Taper toward tip
+                    if (fy < -0.05) {
+                        const taper = 1 - Math.pow((-0.05 - fy) / 0.16, 1.5) * 0.6;
+                        fp.setZ(v, fz * taper);
+                        fp.setX(v, fp.getX(v) * taper);
+                    }
+                    // Sweep back
+                    fp.setZ(v, fp.getZ(v) + fy * 0.15);
+                }
+                finGeo.computeVertexNormals();
                 const fin = new THREE.Mesh(finGeo, new THREE.MeshPhongMaterial({ color: 0xFF5500, shininess: 20 }));
-                fin.position.set(0, -0.12, -0.6);
+                fin.position.set(0, -0.12, -0.55);
                 fin.castShadow = true;
                 mesh.add(fin);
+                // Side fins (smaller)
+                for (let s of [-1, 1]) {
+                    const sfGeo = new THREE.BoxGeometry(0.03, 0.12, 0.1, 1, 2, 2);
+                    const sfin = new THREE.Mesh(sfGeo, new THREE.MeshPhongMaterial({ color: 0xFF5500, shininess: 20 }));
+                    sfin.position.set(s * 0.12, -0.1, -0.4);
+                    sfin.rotation.z = s * 0.15;
+                    mesh.add(sfin);
+                }
+                // Leash plug
+                const plug = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.015, 0.015, 0.02, 8),
+                    new THREE.MeshPhongMaterial({ color: 0x333333, shininess: 40 })
+                );
+                plug.position.set(0, 0.06, -0.9);
+                mesh.add(plug);
             } else if (type === 'umbrella') {
-                // Umbrella with canopy and pole
-                const canopy = new THREE.Mesh(new THREE.ConeGeometry(0.8, 0.3, 16), propMaterials.umbrella);
+                // Beach umbrella with scalloped canopy panels, pole, spike, fringe
+                mesh = new THREE.Group();
+                const umbPanels = 8;
+                const canopyGeo = new THREE.ConeGeometry(0.85, 0.28, umbPanels * 2);
+                // Scallop the edge — push every other bottom vertex inward
+                const cp = canopyGeo.attributes.position;
+                for (let v = 0; v < cp.count; v++) {
+                    const y = cp.getY(v);
+                    if (y < -0.1) {
+                        const x = cp.getX(v), z = cp.getZ(v);
+                        const angle = Math.atan2(z, x);
+                        const scallop = 1 - Math.pow(Math.sin(angle * umbPanels), 2) * 0.08;
+                        cp.setX(v, x * scallop);
+                        cp.setZ(v, z * scallop);
+                    }
+                }
+                canopyGeo.computeVertexNormals();
+                const canopy = new THREE.Mesh(canopyGeo, propMaterials.umbrella);
                 canopy.castShadow = true;
+                mesh.add(canopy);
+                // Rib lines (thin cylinders along panel seams)
+                for (let r = 0; r < umbPanels; r++) {
+                    const angle = (r / umbPanels) * Math.PI * 2;
+                    const rib = new THREE.Mesh(
+                        new THREE.CylinderGeometry(0.008, 0.005, 0.88, 6),
+                        new THREE.MeshPhongMaterial({ color: 0x666666, shininess: 30 })
+                    );
+                    rib.position.set(Math.cos(angle) * 0.4, -0.05, Math.sin(angle) * 0.4);
+                    rib.rotation.z = Math.cos(angle) * 0.35;
+                    rib.rotation.x = -Math.sin(angle) * 0.35;
+                    mesh.add(rib);
+                }
+                // Top finial
+                const finial = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.04, 8, 8),
+                    new THREE.MeshPhongMaterial({ color: 0xFFFFFF, shininess: 50 })
+                );
+                finial.position.y = 0.16;
+                mesh.add(finial);
+                // Pole with taper
                 const pole = new THREE.Mesh(
-                    new THREE.CylinderGeometry(0.05, 0.05, 1.0, 6),
+                    new THREE.CylinderGeometry(0.035, 0.05, 1.0, 8),
                     new THREE.MeshPhongMaterial({ color: 0x8B5A2B, map: woodTex, shininess: 20 })
                 );
                 pole.position.y = -0.65;
                 pole.castShadow = true;
-                // Add handle
-                const handle = new THREE.Mesh(
-                    new THREE.TorusGeometry(0.08, 0.03, 8, 16),
-                    new THREE.MeshPhongMaterial({ color: 0x654321, shininess: 15 })
-                );
-                handle.position.set(0, -0.95, 0);
-                handle.rotation.x = Math.PI / 4;
-                handle.castShadow = true;
-                mesh = new THREE.Group();
-                mesh.add(canopy);
                 mesh.add(pole);
-                mesh.add(handle);
-            } else if (type === 'chair') {
-                // Beach chair with detailed frame and fabric
-                const frame = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.8, 0.6), propMaterials.chair);
-                frame.castShadow = true;
-                // Add seat fabric
-                const seat = new THREE.Mesh(
-                    new THREE.PlaneGeometry(0.55, 0.75),
-                    new THREE.MeshPhongMaterial({ color: 0xFF9999, side: THREE.DoubleSide, shininess: 10 })
+                // Ground spike
+                const spike = new THREE.Mesh(
+                    new THREE.ConeGeometry(0.04, 0.15, 6),
+                    new THREE.MeshPhongMaterial({ color: 0x666666, shininess: 40 })
                 );
-                seat.position.set(0, 0, 0);
-                seat.rotation.x = 0.3;
+                spike.position.y = -1.22;
+                spike.rotation.x = Math.PI;
+                mesh.add(spike);
+            } else if (type === 'chair') {
+                // Beach/folding chair with separate legs, crossbars, armrests, fabric seat+back
+                mesh = new THREE.Group();
+                const legMat = new THREE.MeshPhongMaterial({ color: 0x8B5A2B, map: woodTex, shininess: 15 });
+                const fabricMat = new THREE.MeshPhongMaterial({ color: 0xFF6B6B, side: THREE.DoubleSide, shininess: 8 });
+                const fabricMat2 = new THREE.MeshPhongMaterial({ color: 0xFF9999, side: THREE.DoubleSide, shininess: 8 });
+                // 4 legs — tapered cylinders
+                const legPositions = [[-0.22, 0, -0.2], [0.22, 0, -0.2], [-0.22, 0, 0.2], [0.22, 0, 0.2]];
+                legPositions.forEach(([lx, ly, lz], i) => {
+                    const leg = new THREE.Mesh(
+                        new THREE.CylinderGeometry(0.02, 0.025, 0.7, 6),
+                        legMat
+                    );
+                    // Back legs tilt backward
+                    leg.position.set(lx, 0.35, lz);
+                    if (i < 2) leg.rotation.x = -0.1; // back legs lean
+                    else leg.rotation.x = 0.05;
+                    leg.castShadow = true;
+                    mesh.add(leg);
+                });
+                // Cross brace (X pattern between legs)
+                for (let s of [-1, 1]) {
+                    const brace = new THREE.Mesh(
+                        new THREE.CylinderGeometry(0.012, 0.012, 0.55, 6),
+                        legMat
+                    );
+                    brace.position.set(s * 0.22, 0.25, 0);
+                    brace.rotation.x = Math.PI / 2;
+                    mesh.add(brace);
+                }
+                // Front crossbar
+                const frontBar = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.015, 0.015, 0.44, 6),
+                    legMat
+                );
+                frontBar.position.set(0, 0.15, 0.2);
+                frontBar.rotation.z = Math.PI / 2;
+                mesh.add(frontBar);
+                // Armrests
+                for (let s of [-1, 1]) {
+                    const arm = new THREE.Mesh(
+                        new THREE.BoxGeometry(0.04, 0.02, 0.38),
+                        legMat
+                    );
+                    arm.position.set(s * 0.24, 0.62, 0);
+                    arm.castShadow = true;
+                    mesh.add(arm);
+                }
+                // Seat fabric with sag
+                const seatGeo = new THREE.PlaneGeometry(0.42, 0.38, 6, 4);
+                const sp = seatGeo.attributes.position;
+                for (let v = 0; v < sp.count; v++) {
+                    const sx = sp.getX(v), sy = sp.getY(v);
+                    sp.setZ(v, -(0.04 - sx * sx * 0.15 - sy * sy * 0.08));
+                }
+                seatGeo.computeVertexNormals();
+                const seat = new THREE.Mesh(seatGeo, fabricMat);
+                seat.position.set(0, 0.42, 0.02);
+                seat.rotation.x = -Math.PI / 2 + 0.05;
                 seat.castShadow = true;
-                mesh = new THREE.Group();
-                mesh.add(frame);
                 mesh.add(seat);
+                // Back fabric (angled)
+                const backGeo = new THREE.PlaneGeometry(0.42, 0.45, 6, 4);
+                const bkp = backGeo.attributes.position;
+                for (let v = 0; v < bkp.count; v++) {
+                    const bx = bkp.getX(v);
+                    bkp.setZ(v, -(0.02 - bx * bx * 0.1));
+                }
+                backGeo.computeVertexNormals();
+                const back = new THREE.Mesh(backGeo, fabricMat2);
+                back.position.set(0, 0.55, -0.18);
+                back.rotation.x = -0.25;
+                back.castShadow = true;
+                mesh.add(back);
             } else if (type === 'barrel') {
-                // Wooden barrel — bulging shape with metal bands and staves
+                // Wooden barrel — bulging staves with metal bands, rivets, bung hole, lid grain
                 mesh = new THREE.Group();
-                const barrelGeo = new THREE.CylinderGeometry(0.28, 0.28, 0.75, 16);
-                // Bulge the middle vertices outward
+                const staveCount = 16;
+                const barrelGeo = new THREE.CylinderGeometry(0.28, 0.28, 0.75, staveCount, 6);
                 const bPos = barrelGeo.attributes.position;
                 for (let v = 0; v < bPos.count; v++) {
                     const y = bPos.getY(v);
+                    const x = bPos.getX(v), z = bPos.getZ(v);
                     const bulge = 1 + 0.12 * (1 - Math.pow(y / 0.375, 2));
-                    bPos.setX(v, bPos.getX(v) * bulge);
-                    bPos.setZ(v, bPos.getZ(v) * bulge);
+                    // Stave groove — slight inward dip at each stave seam
+                    const angle = Math.atan2(z, x);
+                    const stavePhase = Math.cos(angle * staveCount);
+                    const groove = 1 - Math.pow(stavePhase, 12) * 0.025;
+                    bPos.setX(v, x * bulge * groove);
+                    bPos.setZ(v, z * bulge * groove);
                 }
                 barrelGeo.computeVertexNormals();
                 const barrel = new THREE.Mesh(barrelGeo, propMaterials.barrel);
                 barrel.castShadow = true;
                 mesh.add(barrel);
-                // Metal bands
+                // Metal bands with rivets
                 const bandMat = new THREE.MeshPhongMaterial({ color: 0x555555, shininess: 50, specular: 0x888888 });
-                for (let j = 0; j < 3; j++) {
-                    const yPos = -0.25 + j * 0.25;
+                const rivetMat = new THREE.MeshPhongMaterial({ color: 0x777777, shininess: 60 });
+                const bandYs = [-0.28, -0.05, 0.18, 0.3];
+                bandYs.forEach(yPos => {
                     const radius = 0.28 * (1 + 0.12 * (1 - Math.pow(yPos / 0.375, 2)));
-                    const band = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.015, 8, 24), bandMat);
+                    const band = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.013, 6, 24), bandMat);
                     band.position.y = yPos;
                     band.rotation.x = Math.PI / 2;
-                    band.castShadow = true;
                     mesh.add(band);
-                }
-                // Lid circle
+                    // Rivets on band
+                    for (let rv = 0; rv < 6; rv++) {
+                        const ra = (rv / 6) * Math.PI * 2;
+                        const rivet = new THREE.Mesh(new THREE.SphereGeometry(0.008, 6, 6), rivetMat);
+                        rivet.position.set(Math.cos(ra) * (radius + 0.01), yPos, Math.sin(ra) * (radius + 0.01));
+                        mesh.add(rivet);
+                    }
+                });
+                // Bung hole (on side)
+                const bung = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.03, 0.03, 0.02, 8),
+                    new THREE.MeshPhongMaterial({ color: 0x3A2A1A, shininess: 5 })
+                );
+                bung.position.set(0, 0.08, 0.32);
+                bung.rotation.x = Math.PI / 2;
+                mesh.add(bung);
+                // Lid with grain lines
                 const lid = new THREE.Mesh(
-                    new THREE.CylinderGeometry(0.27, 0.27, 0.02, 16),
+                    new THREE.CylinderGeometry(0.27, 0.27, 0.025, 16),
                     new THREE.MeshPhongMaterial({ color: 0x7B4B2B, map: woodTex, shininess: 10 })
                 );
-                lid.position.y = 0.37;
+                lid.position.y = 0.375;
                 lid.castShadow = true;
                 mesh.add(lid);
+                // Lid cross brace
+                const lidBrace = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.5, 0.015, 0.04),
+                    new THREE.MeshPhongMaterial({ color: 0x6A4020, shininess: 8 })
+                );
+                lidBrace.position.y = 0.395;
+                mesh.add(lidBrace);
             } else if (type === 'rock') {
-                // Rock — multi-layer organic shape with moss
+                // Rock — layered organic shape with cracks, lichen, moss, mineral veins
                 mesh = new THREE.Group();
                 const baseSize = 0.3 + Math.random() * 0.5;
-                const geo = new THREE.IcosahedronGeometry(baseSize, 3);
+                const geo = new THREE.IcosahedronGeometry(baseSize, 4);
                 const pos = geo.attributes.position;
-                // Noise-based displacement for organic shape
+                // Multi-frequency noise for natural shape
                 for (let j = 0; j < pos.count; j++) {
                     const x = pos.getX(j), y = pos.getY(j), z = pos.getZ(j);
-                    const noise = Math.sin(x * 5) * Math.cos(z * 3) * 0.1 + Math.sin(y * 7) * 0.08;
-                    const d = 1 + noise + (Math.random() - 0.5) * 0.08;
-                    pos.setXYZ(j, x * d, y * d * 0.65, z * d); // squash vertically
+                    const n1 = Math.sin(x * 5) * Math.cos(z * 3) * 0.1;
+                    const n2 = Math.sin(y * 7 + x * 3) * 0.08;
+                    const n3 = Math.sin(x * 12 + z * 8) * Math.cos(y * 10) * 0.03; // high-freq roughness
+                    const d = 1 + n1 + n2 + n3 + (Math.random() - 0.5) * 0.05;
+                    pos.setXYZ(j, x * d, y * d * 0.6, z * d);
                 }
+                // Add vertex colors for mineral variation
+                const rockColors = new Float32Array(pos.count * 3);
+                for (let j = 0; j < pos.count; j++) {
+                    const y = pos.getY(j);
+                    const streak = Math.sin(pos.getX(j) * 8 + pos.getZ(j) * 6) * 0.5 + 0.5;
+                    const r = 0.85 + streak * 0.15;
+                    const g = 0.82 + streak * 0.1;
+                    const b = 0.78 + streak * 0.08;
+                    // Darken bottom
+                    const yFade = Math.max(0.5, (y + baseSize * 0.6) / (baseSize * 1.2));
+                    rockColors[j * 3] = r * yFade;
+                    rockColors[j * 3 + 1] = g * yFade;
+                    rockColors[j * 3 + 2] = b * yFade;
+                }
+                geo.setAttribute('color', new THREE.BufferAttribute(rockColors, 3));
                 geo.computeVertexNormals();
-                const rock = new THREE.Mesh(geo, propMaterials.rock);
+                const rockMat = propMaterials.rock.clone();
+                rockMat.vertexColors = true;
+                const rock = new THREE.Mesh(geo, rockMat);
                 rock.castShadow = true;
                 rock.receiveShadow = true;
                 mesh.add(rock);
-                // Moss patches on top
-                if (Math.random() > 0.4) {
-                    const mossGeo = new THREE.SphereGeometry(baseSize * 0.5, 8, 8, 0, Math.PI * 2, 0, Math.PI / 3);
-                    const moss = new THREE.Mesh(mossGeo, new THREE.MeshPhongMaterial({
-                        color: 0x3A6A1F, shininess: 5, transparent: true, opacity: 0.8
-                    }));
-                    moss.position.y = baseSize * 0.3;
-                    mesh.add(moss);
+                // Moss patches on top (irregular, multiple)
+                if (Math.random() > 0.35) {
+                    const mossCount = 1 + Math.floor(Math.random() * 3);
+                    for (let m = 0; m < mossCount; m++) {
+                        const mSize = baseSize * (0.25 + Math.random() * 0.25);
+                        const mossGeo = new THREE.SphereGeometry(mSize, 8, 6, 0, Math.PI * 2, 0, Math.PI / 3);
+                        const mp = mossGeo.attributes.position;
+                        for (let v = 0; v < mp.count; v++) {
+                            mp.setX(v, mp.getX(v) + (Math.random() - 0.5) * 0.02);
+                            mp.setZ(v, mp.getZ(v) + (Math.random() - 0.5) * 0.02);
+                        }
+                        mossGeo.computeVertexNormals();
+                        const moss = new THREE.Mesh(mossGeo, new THREE.MeshPhongMaterial({
+                            color: new THREE.Color(0.2 + Math.random() * 0.1, 0.35 + Math.random() * 0.15, 0.1),
+                            shininess: 5, transparent: true, opacity: 0.85
+                        }));
+                        moss.position.set((Math.random() - 0.5) * baseSize * 0.4, baseSize * 0.25 + m * 0.03, (Math.random() - 0.5) * baseSize * 0.4);
+                        mesh.add(moss);
+                    }
+                }
+                // Lichen spots (tiny flat discs)
+                if (Math.random() > 0.5) {
+                    for (let li = 0; li < 3; li++) {
+                        const lichen = new THREE.Mesh(
+                            new THREE.CircleGeometry(0.03 + Math.random() * 0.04, 6),
+                            new THREE.MeshPhongMaterial({ color: 0xC8B060, shininess: 3, transparent: true, opacity: 0.7, side: THREE.DoubleSide })
+                        );
+                        const la = Math.random() * Math.PI * 2;
+                        lichen.position.set(Math.cos(la) * baseSize * 0.5, Math.random() * baseSize * 0.3, Math.sin(la) * baseSize * 0.5);
+                        lichen.lookAt(lichen.position.clone().multiplyScalar(2));
+                        mesh.add(lichen);
+                    }
                 }
             } else if (type === 'cooler') {
-                // Cooler with lid and details
-                const cooler = new THREE.Mesh(
-                    new THREE.BoxGeometry(0.8, 0.5, 0.5),
-                    propMaterials.cooler
-                );
+                // Cooler with rounded body, lid with lip, latches, handles, drain plug, label
+                mesh = new THREE.Group();
+                // Body with beveled look (use vertex displacement on box)
+                const coolerGeo = new THREE.BoxGeometry(0.8, 0.5, 0.5, 4, 3, 4);
+                const cPos = coolerGeo.attributes.position;
+                for (let v = 0; v < cPos.count; v++) {
+                    const x = cPos.getX(v), y = cPos.getY(v), z = cPos.getZ(v);
+                    // Bevel edges slightly
+                    const bevel = 0.97 + 0.03 * Math.cos(Math.atan2(z, x) * 2);
+                    if (Math.abs(y) > 0.2) {
+                        cPos.setX(v, x * 0.97);
+                        cPos.setZ(v, z * 0.97);
+                    }
+                }
+                coolerGeo.computeVertexNormals();
+                const cooler = new THREE.Mesh(coolerGeo, propMaterials.cooler);
                 cooler.castShadow = true;
+                mesh.add(cooler);
+                // Lid with overhanging lip
                 const lid = new THREE.Mesh(
-                    new THREE.BoxGeometry(0.85, 0.08, 0.55),
+                    new THREE.BoxGeometry(0.84, 0.07, 0.54),
                     new THREE.MeshPhongMaterial({ color: 0xFFFFFF, shininess: 35 })
                 );
-                lid.position.y = 0.35;
+                lid.position.y = 0.285;
                 lid.castShadow = true;
-                const handle = new THREE.Mesh(
-                    new THREE.CylinderGeometry(0.08, 0.08, 0.3, 8),
-                    new THREE.MeshPhongMaterial({ color: 0x1E90FF, shininess: 30 })
-                );
-                handle.position.set(0, 0.45, 0);
-                handle.castShadow = true;
-                mesh = new THREE.Group();
-                mesh.add(cooler);
                 mesh.add(lid);
-                mesh.add(handle);
-            } else if (type === 'kayak') {
-                // Kayak — long hull with seat
-                mesh = new THREE.Group();
-                const hull = new THREE.Mesh(
-                    new THREE.CylinderGeometry(0.2, 0.35, 2.8, 12),
-                    propMaterials.kayak
+                const lidLip = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.86, 0.02, 0.56),
+                    new THREE.MeshPhongMaterial({ color: 0xEEEEEE, shininess: 30 })
                 );
+                lidLip.position.y = 0.255;
+                mesh.add(lidLip);
+                // Side handles (arched)
+                for (let s of [-1, 1]) {
+                    const hArch = new THREE.Mesh(
+                        new THREE.TorusGeometry(0.06, 0.018, 6, 10, Math.PI),
+                        new THREE.MeshPhongMaterial({ color: 0x1E90FF, shininess: 30 })
+                    );
+                    hArch.position.set(s * 0.42, 0.15, 0);
+                    hArch.rotation.y = Math.PI / 2;
+                    hArch.rotation.z = Math.PI;
+                    mesh.add(hArch);
+                }
+                // Front latches
+                const latchMat = new THREE.MeshPhongMaterial({ color: 0x888888, shininess: 50 });
+                for (let lx of [-0.25, 0.25]) {
+                    const latch = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.04, 0.02), latchMat);
+                    latch.position.set(lx, 0.22, 0.26);
+                    mesh.add(latch);
+                    const latchHook = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.02, 0.015), latchMat);
+                    latchHook.position.set(lx, 0.19, 0.265);
+                    mesh.add(latchHook);
+                }
+                // Drain plug (back bottom)
+                const drain = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.02, 0.02, 0.02, 8),
+                    new THREE.MeshPhongMaterial({ color: 0x666666, shininess: 40 })
+                );
+                drain.position.set(0, -0.24, -0.26);
+                drain.rotation.x = Math.PI / 2;
+                mesh.add(drain);
+                // Brand label (simple colored rect)
+                const label = new THREE.Mesh(
+                    new THREE.PlaneGeometry(0.25, 0.1),
+                    new THREE.MeshPhongMaterial({ color: 0x1565C0, shininess: 20 })
+                );
+                label.position.set(0, 0.05, 0.252);
+                mesh.add(label);
+            } else if (type === 'kayak') {
+                // Kayak — tapered hull with bow/stern points, cockpit, seat, paddle with blades
+                mesh = new THREE.Group();
+                const hullGeo = new THREE.CylinderGeometry(0.22, 0.32, 2.8, 14, 8);
+                const hp = hullGeo.attributes.position;
+                for (let v = 0; v < hp.count; v++) {
+                    const y = hp.getY(v); // along length when rotated
+                    const x = hp.getX(v), z = hp.getZ(v);
+                    // Taper bow and stern
+                    const lenFrac = Math.abs(y) / 1.4;
+                    const taper = lenFrac > 0.5 ? 1 - Math.pow((lenFrac - 0.5) / 0.5, 1.8) * 0.85 : 1;
+                    hp.setX(v, x * Math.max(0.08, taper));
+                    hp.setZ(v, z * Math.max(0.12, taper));
+                    // V-hull bottom
+                    if (z > 0) hp.setZ(v, hp.getZ(v) * 0.9);
+                }
+                hullGeo.computeVertexNormals();
+                const hull = new THREE.Mesh(hullGeo, propMaterials.kayak);
                 hull.rotation.z = Math.PI / 2;
                 hull.castShadow = true;
                 mesh.add(hull);
-                const seat = new THREE.Mesh(
-                    new THREE.BoxGeometry(0.3, 0.1, 0.4),
-                    new THREE.MeshPhongMaterial({ color: 0x333333, shininess: 15 })
-                );
-                seat.position.y = 0.2;
-                seat.castShadow = true;
-                mesh.add(seat);
-                const paddle = new THREE.Mesh(
-                    new THREE.CylinderGeometry(0.03, 0.03, 1.5, 6),
-                    new THREE.MeshPhongMaterial({ color: 0x444444, shininess: 20 })
-                );
-                paddle.position.set(0, 0.3, 0.3);
-                paddle.rotation.z = 0.3;
-                mesh.add(paddle);
-            } else if (type === 'crate') {
-                // Wooden shipping crate
-                mesh = new THREE.Group();
-                const box = new THREE.Mesh(
-                    new THREE.BoxGeometry(0.7, 0.6, 0.7),
-                    propMaterials.crate
-                );
-                box.castShadow = true;
-                mesh.add(box);
-                // Lid slats
-                for (let s = 0; s < 3; s++) {
-                    const slat = new THREE.Mesh(
-                        new THREE.BoxGeometry(0.72, 0.04, 0.18),
-                        new THREE.MeshPhongMaterial({ color: 0x6A4E2E, shininess: 10 })
-                    );
-                    slat.position.set(0, 0.32, -0.22 + s * 0.22);
-                    slat.castShadow = true;
-                    mesh.add(slat);
+                // Cockpit rim
+                const rimGeo = new THREE.TorusGeometry(0.18, 0.02, 6, 16);
+                const rim = new THREE.Mesh(rimGeo, new THREE.MeshPhongMaterial({ color: 0x222222, shininess: 30 }));
+                rim.position.y = 0.22;
+                rim.rotation.x = Math.PI / 2;
+                mesh.add(rim);
+                // Seat (contoured)
+                const seatGeo = new THREE.BoxGeometry(0.26, 0.04, 0.3, 3, 1, 3);
+                const seP = seatGeo.attributes.position;
+                for (let v = 0; v < seP.count; v++) {
+                    const sx = seP.getX(v);
+                    seP.setY(v, seP.getY(v) - sx * sx * 0.3);
                 }
+                seatGeo.computeVertexNormals();
+                const seat = new THREE.Mesh(seatGeo, new THREE.MeshPhongMaterial({ color: 0x333333, shininess: 15 }));
+                seat.position.y = 0.15;
+                mesh.add(seat);
+                // Paddle shaft with blades
+                const pShaft = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.018, 0.018, 1.5, 6),
+                    new THREE.MeshPhongMaterial({ color: 0x333333, shininess: 20 })
+                );
+                pShaft.position.set(0.3, 0.3, 0.3);
+                pShaft.rotation.z = 0.3;
+                mesh.add(pShaft);
+                // Paddle blades
+                for (let pb of [-1, 1]) {
+                    const bladeGeo = new THREE.BoxGeometry(0.14, 0.005, 0.22, 3, 1, 3);
+                    const blP = bladeGeo.attributes.position;
+                    for (let v = 0; v < blP.count; v++) {
+                        const bz = blP.getZ(v);
+                        blP.setX(v, blP.getX(v) * (1 - Math.abs(bz) / 0.15 * 0.3));
+                    }
+                    bladeGeo.computeVertexNormals();
+                    const blade = new THREE.Mesh(bladeGeo, new THREE.MeshPhongMaterial({ color: 0xFF6600, shininess: 25 }));
+                    const bOff = pb * 0.72;
+                    blade.position.set(0.3 + Math.sin(0.3) * bOff, 0.3 + Math.cos(0.3) * bOff, 0.3);
+                    blade.rotation.z = 0.3;
+                    if (pb === 1) blade.rotation.y = Math.PI / 2;
+                    mesh.add(blade);
+                }
+                // Bow handle
+                const bowHandle = new THREE.Mesh(
+                    new THREE.TorusGeometry(0.04, 0.01, 4, 8, Math.PI),
+                    new THREE.MeshPhongMaterial({ color: 0x444444, shininess: 30 })
+                );
+                bowHandle.position.set(1.2, 0.18, 0);
+                bowHandle.rotation.y = Math.PI / 2;
+                mesh.add(bowHandle);
+            } else if (type === 'crate') {
+                // Wooden shipping crate with slat construction, gaps, nails, dark interior
+                mesh = new THREE.Group();
+                const slatMat = new THREE.MeshPhongMaterial({ color: 0x8B6B3E, map: woodTex, shininess: 8 });
+                const slatMat2 = new THREE.MeshPhongMaterial({ color: 0x7A5C30, map: woodTex, shininess: 8 });
+                const nailMat = new THREE.MeshPhongMaterial({ color: 0x555555, shininess: 40 });
+                // Dark interior (visible through gaps)
+                const interior = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.6, 0.5, 0.6),
+                    new THREE.MeshPhongMaterial({ color: 0x1A1008, shininess: 2 })
+                );
+                interior.castShadow = true;
+                mesh.add(interior);
+                // Side slats (4 sides, each with 4 horizontal slats with gaps)
+                const slatW = 0.72, slatH = 0.11, slatD = 0.03;
+                const sides = [
+                    { axis: 'z', pos: 0.32, rot: 0 },
+                    { axis: 'z', pos: -0.32, rot: 0 },
+                    { axis: 'x', pos: 0.32, rot: Math.PI / 2 },
+                    { axis: 'x', pos: -0.32, rot: Math.PI / 2 }
+                ];
+                sides.forEach(side => {
+                    for (let s = 0; s < 4; s++) {
+                        const slat = new THREE.Mesh(
+                            new THREE.BoxGeometry(slatW, slatH, slatD),
+                            s % 2 === 0 ? slatMat : slatMat2
+                        );
+                        const yPos = -0.19 + s * 0.14;
+                        if (side.axis === 'z') {
+                            slat.position.set(0, yPos, side.pos);
+                        } else {
+                            slat.position.set(side.pos, yPos, 0);
+                            slat.rotation.y = side.rot;
+                        }
+                        slat.castShadow = true;
+                        mesh.add(slat);
+                    }
+                    // Corner post
+                    for (let cx of [-0.3, 0.3]) {
+                        const post = new THREE.Mesh(
+                            new THREE.BoxGeometry(0.04, 0.6, 0.04),
+                            slatMat2
+                        );
+                        if (side.axis === 'z') post.position.set(cx, 0, side.pos);
+                        else post.position.set(side.pos, 0, cx);
+                        mesh.add(post);
+                    }
+                });
+                // Top slats with gaps
+                for (let s = 0; s < 4; s++) {
+                    const topSlat = new THREE.Mesh(
+                        new THREE.BoxGeometry(0.72, 0.03, 0.14),
+                        s % 2 === 0 ? slatMat : slatMat2
+                    );
+                    topSlat.position.set(0, 0.31, -0.26 + s * 0.17);
+                    topSlat.castShadow = true;
+                    mesh.add(topSlat);
+                }
+                // Nail heads on corner posts (small dots)
+                sides.forEach(side => {
+                    for (let ny = 0; ny < 3; ny++) {
+                        const nail = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.005, 6), nailMat);
+                        const nailY = -0.15 + ny * 0.15;
+                        if (side.axis === 'z') nail.position.set(0.3, nailY, side.pos + (side.pos > 0 ? 0.016 : -0.016));
+                        else nail.position.set(side.pos + (side.pos > 0 ? 0.016 : -0.016), nailY, 0.3);
+                        nail.rotation.x = Math.PI / 2;
+                        mesh.add(nail);
+                    }
+                });
             } else if (type === 'hammock') {
-                // Hammock between two short posts
+                // Hammock with posts, rope supports, deeply sagging woven fabric, spreader bars
                 mesh = new THREE.Group();
                 const postMat = new THREE.MeshPhongMaterial({ map: barkTex, shininess: 8 });
+                const ropeMat = new THREE.MeshPhongMaterial({ color: 0xC8B080, shininess: 8 });
+                // Tapered posts with notch at top
                 for (let s of [-1, 1]) {
-                    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.2, 6), postMat);
-                    post.position.set(s * 0.8, 0.6, 0);
+                    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 1.3, 8), postMat);
+                    post.position.set(s * 0.85, 0.65, 0);
                     post.castShadow = true;
                     mesh.add(post);
+                    // Post cap notch
+                    const notch = new THREE.Mesh(
+                        new THREE.CylinderGeometry(0.02, 0.02, 0.08, 6),
+                        postMat
+                    );
+                    notch.position.set(s * 0.85, 1.32, 0);
+                    notch.rotation.z = Math.PI / 2;
+                    mesh.add(notch);
                 }
-                // Fabric sling
-                const slingGeo = new THREE.PlaneGeometry(1.4, 0.6, 8, 4);
+                // Spreader bars
+                for (let s of [-1, 1]) {
+                    const bar = new THREE.Mesh(
+                        new THREE.CylinderGeometry(0.015, 0.015, 0.55, 6),
+                        new THREE.MeshPhongMaterial({ color: 0x8B6B3E, shininess: 10 })
+                    );
+                    bar.position.set(s * 0.72, 1.0, 0);
+                    bar.rotation.z = Math.PI / 2;
+                    bar.rotation.y = Math.PI / 2;
+                    mesh.add(bar);
+                }
+                // Support ropes (from post top to spreader bar ends)
+                for (let s of [-1, 1]) {
+                    for (let rz of [-0.25, 0.25]) {
+                        const rope = new THREE.Mesh(
+                            new THREE.CylinderGeometry(0.006, 0.006, 0.25, 6),
+                            ropeMat
+                        );
+                        rope.position.set(s * 0.8, 1.15, rz * 0.5);
+                        rope.rotation.z = s * 0.3;
+                        mesh.add(rope);
+                    }
+                }
+                // Fabric sling with deep catenary sag
+                const slingGeo = new THREE.PlaneGeometry(1.3, 0.55, 14, 8);
                 const sPos = slingGeo.attributes.position;
                 for (let v = 0; v < sPos.count; v++) {
-                    const sx = sPos.getX(v);
-                    sPos.setZ(v, -Math.abs(sx) * 0.3);
+                    const sx = sPos.getX(v), sy = sPos.getY(v);
+                    // Catenary sag (deeper in center)
+                    const sagX = Math.pow(sx / 0.65, 2);
+                    const sagY = (1 - Math.abs(sy) / 0.275) * 0.15;
+                    sPos.setZ(v, -(0.35 * (1 - sagX) + sagY) * (1 - sagX * 0.5));
                 }
                 slingGeo.computeVertexNormals();
                 const sling = new THREE.Mesh(slingGeo, propMaterials.hammock);
-                sling.position.y = 0.8;
+                sling.position.y = 1.0;
                 sling.rotation.x = -Math.PI / 2;
                 sling.castShadow = true;
                 mesh.add(sling);
+                // Fringe at edges
+                for (let fi = 0; fi < 8; fi++) {
+                    const fringe = new THREE.Mesh(
+                        new THREE.CylinderGeometry(0.004, 0.004, 0.12, 3),
+                        ropeMat
+                    );
+                    const fAngle = (fi / 8) * 0.5 - 0.25;
+                    fringe.position.set(-0.65, 0.9, fAngle);
+                    mesh.add(fringe);
+                    const fringe2 = fringe.clone();
+                    fringe2.position.set(0.65, 0.9, fAngle);
+                    mesh.add(fringe2);
+                }
             } else if (type === 'lantern') {
-                // Paper lantern
+                // Paper lantern with wire frame ribs, top/bottom caps, hanging hook
                 mesh = new THREE.Group();
+                // Lantern globe (slightly squashed sphere)
                 const globe = new THREE.Mesh(
-                    new THREE.SphereGeometry(0.25, 12, 12),
+                    new THREE.SphereGeometry(0.25, 14, 14),
                     propMaterials.lantern
                 );
+                globe.scale.y = 1.15;
                 globe.castShadow = true;
                 mesh.add(globe);
+                // Wire frame ribs (vertical meridians)
+                const wireMat = new THREE.MeshPhongMaterial({ color: 0x333333, shininess: 30 });
+                for (let wr = 0; wr < 6; wr++) {
+                    const ribAngle = (wr / 6) * Math.PI;
+                    const rib = new THREE.Mesh(
+                        new THREE.TorusGeometry(0.25, 0.005, 4, 16),
+                        wireMat
+                    );
+                    rib.rotation.y = ribAngle;
+                    rib.scale.y = 1.15;
+                    mesh.add(rib);
+                }
+                // Horizontal rings
+                for (let hr of [-0.12, 0, 0.12]) {
+                    const ringR = 0.25 * Math.cos(Math.asin(hr / 0.29));
+                    const ring = new THREE.Mesh(
+                        new THREE.TorusGeometry(ringR, 0.004, 4, 16),
+                        wireMat
+                    );
+                    ring.position.y = hr * 1.15;
+                    ring.rotation.x = Math.PI / 2;
+                    mesh.add(ring);
+                }
+                // Top cap
+                const topCap = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.06, 0.08, 0.04, 8),
+                    wireMat
+                );
+                topCap.position.y = 0.3;
+                mesh.add(topCap);
+                // Bottom cap
+                const botCap = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.07, 0.05, 0.03, 8),
+                    wireMat
+                );
+                botCap.position.y = -0.3;
+                mesh.add(botCap);
+                // Hanging wire with hook
                 const wire = new THREE.Mesh(
-                    new THREE.CylinderGeometry(0.01, 0.01, 0.4, 4),
-                    new THREE.MeshPhongMaterial({ color: 0x333333 })
+                    new THREE.CylinderGeometry(0.008, 0.008, 0.3, 6),
+                    wireMat
                 );
-                wire.position.y = 0.35;
+                wire.position.y = 0.47;
                 mesh.add(wire);
-            } else if (type === 'drum') {
-                // Hawaiian drum (pahu)
-                mesh = new THREE.Group();
-                const body = new THREE.Mesh(
-                    new THREE.CylinderGeometry(0.25, 0.3, 0.6, 16),
-                    propMaterials.drum
+                const hook = new THREE.Mesh(
+                    new THREE.TorusGeometry(0.025, 0.005, 4, 8, Math.PI),
+                    wireMat
                 );
+                hook.position.y = 0.62;
+                mesh.add(hook);
+            } else if (type === 'drum') {
+                // Hawaiian drum (pahu) — carved body, rope lacing, hide head, rim hoop, base ring
+                mesh = new THREE.Group();
+                // Body with carved taper and decorative grooves
+                const drumGeo = new THREE.CylinderGeometry(0.25, 0.3, 0.6, 18, 6);
+                const dp = drumGeo.attributes.position;
+                for (let v = 0; v < dp.count; v++) {
+                    const y = dp.getY(v), x = dp.getX(v), z = dp.getZ(v);
+                    // Decorative grooves (3 bands)
+                    const groove = 1 - Math.pow(Math.sin(y * 12), 8) * 0.02;
+                    dp.setX(v, x * groove);
+                    dp.setZ(v, z * groove);
+                }
+                drumGeo.computeVertexNormals();
+                const body = new THREE.Mesh(drumGeo, propMaterials.drum);
                 body.castShadow = true;
                 mesh.add(body);
-                const head = new THREE.Mesh(
-                    new THREE.CylinderGeometry(0.26, 0.26, 0.04, 16),
-                    new THREE.MeshPhongMaterial({ color: 0xD2B48C, shininess: 15 })
-                );
-                head.position.y = 0.32;
+                // Drum head (hide membrane with slight depression)
+                const headGeo = new THREE.CylinderGeometry(0.26, 0.26, 0.025, 18);
+                const head = new THREE.Mesh(headGeo, new THREE.MeshPhongMaterial({ color: 0xD2B48C, shininess: 15, bumpMap: sandTex, bumpScale: 0.01 }));
+                head.position.y = 0.31;
                 head.castShadow = true;
                 mesh.add(head);
-            } else {
-                // Fish net draped on frame
-                mesh = new THREE.Group();
-                const pole1 = new THREE.Mesh(
-                    new THREE.CylinderGeometry(0.04, 0.04, 1.4, 6),
-                    new THREE.MeshPhongMaterial({ map: barkTex, shininess: 8 })
+                // Rim hoop
+                const rimHoop = new THREE.Mesh(
+                    new THREE.TorusGeometry(0.265, 0.015, 6, 20),
+                    new THREE.MeshPhongMaterial({ color: 0x5A3A1A, shininess: 12 })
                 );
-                pole1.position.set(-0.4, 0.7, 0);
+                rimHoop.position.y = 0.32;
+                rimHoop.rotation.x = Math.PI / 2;
+                mesh.add(rimHoop);
+                // Base ring
+                const baseRing = new THREE.Mesh(
+                    new THREE.TorusGeometry(0.31, 0.012, 6, 20),
+                    new THREE.MeshPhongMaterial({ color: 0x5A3A1A, shininess: 12 })
+                );
+                baseRing.position.y = -0.3;
+                baseRing.rotation.x = Math.PI / 2;
+                mesh.add(baseRing);
+                // Lacing ropes (zigzag between rim and base)
+                const laceMat = new THREE.MeshPhongMaterial({ color: 0xC8A860, shininess: 10 });
+                for (let lc = 0; lc < 10; lc++) {
+                    const lAngle = (lc / 10) * Math.PI * 2;
+                    const lace = new THREE.Mesh(
+                        new THREE.CylinderGeometry(0.005, 0.005, 0.65, 3),
+                        laceMat
+                    );
+                    const lx = Math.cos(lAngle) * 0.27;
+                    const lz = Math.sin(lAngle) * 0.27;
+                    lace.position.set(lx, 0.01, lz);
+                    lace.rotation.z = Math.sin(lAngle) * 0.08;
+                    lace.rotation.x = -Math.cos(lAngle) * 0.08;
+                    mesh.add(lace);
+                }
+            } else {
+                // Fish net on drying frame — grid lattice with knots, cross beam, weights
+                mesh = new THREE.Group();
+                const poleMat = new THREE.MeshPhongMaterial({ map: barkTex, shininess: 8 });
+                // Tapered poles
+                const pole1 = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 1.5, 8), poleMat);
+                pole1.position.set(-0.45, 0.75, 0);
                 pole1.castShadow = true;
                 mesh.add(pole1);
-                const pole2 = pole1.clone();
-                pole2.position.set(0.4, 0.7, 0);
+                const pole2 = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 1.5, 8), poleMat);
+                pole2.position.set(0.45, 0.75, 0);
+                pole2.castShadow = true;
                 mesh.add(pole2);
-                const netGeo = new THREE.PlaneGeometry(0.8, 1.2, 6, 8);
-                const nPos = netGeo.attributes.position;
-                for (let v = 0; v < nPos.count; v++) {
-                    nPos.setZ(v, Math.random() * 0.05);
+                // Cross beam at top
+                const crossBeam = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.025, 0.025, 1.0, 6),
+                    poleMat
+                );
+                crossBeam.position.set(0, 1.45, 0);
+                crossBeam.rotation.z = Math.PI / 2;
+                mesh.add(crossBeam);
+                // Net grid — horizontal and vertical lines with sag
+                const netMat = new THREE.MeshPhongMaterial({ color: 0x8B7D5B, shininess: 5 });
+                const knotMat = new THREE.MeshPhongMaterial({ color: 0x7A6B4A, shininess: 5 });
+                const gridW = 0.8, gridH = 1.1;
+                const cols = 8, rows = 10;
+                // Vertical lines
+                for (let c = 0; c <= cols; c++) {
+                    const cx = -gridW / 2 + (c / cols) * gridW;
+                    const vLine = new THREE.Mesh(
+                        new THREE.CylinderGeometry(0.004, 0.004, gridH, 3),
+                        netMat
+                    );
+                    vLine.position.set(cx, 0.85, 0.05 + Math.sin(c * 1.5) * 0.02);
+                    mesh.add(vLine);
                 }
-                netGeo.computeVertexNormals();
-                const net = new THREE.Mesh(netGeo, propMaterials.fishNet);
-                net.position.set(0, 0.7, 0.05);
-                net.castShadow = true;
-                mesh.add(net);
+                // Horizontal lines with sag
+                for (let r = 0; r <= rows; r++) {
+                    const ry = 0.3 + (r / rows) * gridH;
+                    const hGeo = new THREE.CylinderGeometry(0.004, 0.004, gridW, 3, 6);
+                    const hPos = hGeo.attributes.position;
+                    for (let v = 0; v < hPos.count; v++) {
+                        const hy = hPos.getY(v);
+                        // Sag in the middle
+                        const sagFrac = 1 - Math.pow(hy / (gridW / 2), 2);
+                        hPos.setZ(v, hPos.getZ(v) + sagFrac * 0.03 * (1 - r / rows));
+                    }
+                    hGeo.computeVertexNormals();
+                    const hLine = new THREE.Mesh(hGeo, netMat);
+                    hLine.position.set(0, ry, 0.05);
+                    hLine.rotation.z = Math.PI / 2;
+                    mesh.add(hLine);
+                }
+                // Knots at intersections (every other)
+                for (let c = 0; c <= cols; c += 2) {
+                    for (let r = 0; r <= rows; r += 2) {
+                        const kx = -gridW / 2 + (c / cols) * gridW;
+                        const ky = 0.3 + (r / rows) * gridH;
+                        const knot = new THREE.Mesh(new THREE.SphereGeometry(0.008, 6, 6), knotMat);
+                        knot.position.set(kx, ky, 0.05);
+                        mesh.add(knot);
+                    }
+                }
+                // Hanging weights at bottom
+                for (let w = 0; w < 4; w++) {
+                    const wx = -0.3 + w * 0.2;
+                    const weight = new THREE.Mesh(
+                        new THREE.SphereGeometry(0.02, 6, 6),
+                        new THREE.MeshPhongMaterial({ color: 0x555555, shininess: 20 })
+                    );
+                    weight.position.set(wx, 0.25, 0.05);
+                    weight.scale.y = 1.4;
+                    mesh.add(weight);
+                }
             }
 
             mesh.castShadow = true;
@@ -2055,29 +2989,52 @@
                     color: coralColors[Math.floor(Math.random() * coralColors.length)],
                     shininess: 25
                 });
-                const branch = new THREE.Mesh(
-                    new THREE.ConeGeometry(0.2 + Math.random() * 0.3, 0.8 + Math.random() * 1.2, 8),
-                    coralMat
-                );
+                // Main branch with forking and polyp bumps
+                const bH = 0.8 + Math.random() * 1.2;
+                const bGeo = new THREE.ConeGeometry(0.2 + Math.random() * 0.3, bH, 8, 4);
+                const bp = bGeo.attributes.position;
+                for (let v = 0; v < bp.count; v++) {
+                    const bx = bp.getX(v), by = bp.getY(v), bz = bp.getZ(v);
+                    // Polyp bumps (small random displacement)
+                    const polyp = Math.sin(by * 12 + bx * 8) * 0.02 + Math.sin(bz * 10) * 0.015;
+                    bp.setX(v, bx + polyp);
+                    bp.setZ(v, bz + polyp * 0.8);
+                }
+                bGeo.computeVertexNormals();
+                const branch = new THREE.Mesh(bGeo, coralMat);
                 branch.position.set(x, 0.5, z);
                 branch.rotation.x = Math.random() * 0.3;
                 branch.castShadow = true;
                 group.add(branch);
 
-                for (let j = 0; j < 3; j++) {
-                    const subBranch = new THREE.Mesh(
-                        new THREE.ConeGeometry(0.1 + Math.random() * 0.15, 0.4 + Math.random() * 0.6, 6),
-                        coralMat
-                    );
-                    const subAngle = (Math.PI * 2 / 3) * j;
+                // Sub-branches with forking tips
+                for (let j = 0; j < 3 + Math.floor(Math.random() * 2); j++) {
+                    const sbH = 0.4 + Math.random() * 0.6;
+                    const sbGeo = new THREE.ConeGeometry(0.08 + Math.random() * 0.12, sbH, 6, 3);
+                    const sbp = sbGeo.attributes.position;
+                    for (let v = 0; v < sbp.count; v++) {
+                        const polyp = Math.sin(sbp.getY(v) * 15) * 0.01;
+                        sbp.setX(v, sbp.getX(v) + polyp);
+                    }
+                    sbGeo.computeVertexNormals();
+                    const subBranch = new THREE.Mesh(sbGeo, coralMat);
+                    const subAngle = (Math.PI * 2 / 4) * j + Math.random() * 0.5;
                     subBranch.position.set(
-                        x + Math.cos(subAngle) * 0.5,
-                        0.6 + j * 0.25,
-                        z + Math.sin(subAngle) * 0.5
+                        x + Math.cos(subAngle) * (0.3 + Math.random() * 0.3),
+                        0.4 + j * 0.2,
+                        z + Math.sin(subAngle) * (0.3 + Math.random() * 0.3)
                     );
+                    subBranch.rotation.set(Math.random() * 0.4 - 0.2, 0, Math.random() * 0.4 - 0.2);
                     subBranch.castShadow = true;
                     group.add(subBranch);
                 }
+                // Base encrustation (flat disc)
+                const base = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.35, 0.4, 0.08, 10),
+                    new THREE.MeshPhongMaterial({ color: coralMat.color.clone().multiplyScalar(0.6), shininess: 8 })
+                );
+                base.position.set(x, 0.05, z);
+                group.add(base);
             }
             return group;
         }
@@ -2087,31 +3044,59 @@
         function createDock() {
             const group = new THREE.Group();
             const woodMat = new THREE.MeshPhongMaterial({ map: woodTex, shininess: 15 });
-            // Main pier platform
+            const darkWood = new THREE.MeshPhongMaterial({ color: 0x5A4020, map: woodTex, shininess: 10 });
+            const nailMat = new THREE.MeshPhongMaterial({ color: 0x555555, shininess: 40 });
+            // Main pier planks with gaps between
             for (let i = 0; i < 12; i++) {
-                const plank = new THREE.Mesh(new THREE.BoxGeometry(3, 0.12, 0.45), woodMat);
-                plank.position.set(0, 1.0, -i * 0.5);
+                const plankW = 2.9 + Math.random() * 0.1;
+                const plank = new THREE.Mesh(new THREE.BoxGeometry(plankW, 0.1, 0.42), i % 2 === 0 ? woodMat : darkWood);
+                plank.position.set(0, 1.0, -i * 0.48);
                 plank.castShadow = true;
                 plank.receiveShadow = true;
                 group.add(plank);
+                // Nail heads on each plank
+                for (let nx of [-1.1, 1.1]) {
+                    const nail = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.01, 6), nailMat);
+                    nail.position.set(nx, 1.06, -i * 0.48);
+                    group.add(nail);
+                }
             }
-            // Support posts
+            // Support posts with caps
             for (let i = 0; i < 6; i++) {
                 for (let s of [-1.2, 1.2]) {
-                    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.5, 8), woodMat);
+                    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 1.5, 8), woodMat);
                     post.position.set(s, 0.4, -i);
                     post.castShadow = true;
                     group.add(post);
+                    // Post cap
+                    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.08, 0.06, 8), darkWood);
+                    cap.position.set(s, 1.16, -i);
+                    group.add(cap);
                 }
             }
-            // Rope railing
+            // Rope railings with catenary sag
             const ropeMat = new THREE.MeshPhongMaterial({ color: 0xAA9966, shininess: 5 });
             for (let s of [-1.3, 1.3]) {
-                const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 6, 6), ropeMat);
-                rope.rotation.x = Math.PI / 2;
-                rope.position.set(s, 1.3, -3);
-                group.add(rope);
+                // Sagging rope segments between posts
+                for (let seg = 0; seg < 5; seg++) {
+                    const ropeGeo = new THREE.CylinderGeometry(0.02, 0.02, 1.05, 6, 6);
+                    const rp = ropeGeo.attributes.position;
+                    for (let v = 0; v < rp.count; v++) {
+                        const ry = rp.getY(v);
+                        const sag = Math.pow(ry / 0.525, 2) * 0.06;
+                        rp.setX(v, rp.getX(v) - sag);
+                    }
+                    ropeGeo.computeVertexNormals();
+                    const rope = new THREE.Mesh(ropeGeo, ropeMat);
+                    rope.rotation.x = Math.PI / 2;
+                    rope.position.set(s, 1.25, -seg - 0.5);
+                    group.add(rope);
+                }
             }
+            // Mooring cleat
+            const cleat = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.05, 0.06), nailMat);
+            cleat.position.set(1.2, 1.08, -0.3);
+            group.add(cleat);
             return group;
         }
         const dock = createDock();
@@ -2122,26 +3107,66 @@
         function createOutrigger() {
             const group = new THREE.Group();
             const woodMat = new THREE.MeshPhongMaterial({ color: 0x8B4513, map: woodTex, shininess: 20 });
-            // Main hull
-            const hullGeo = new THREE.CylinderGeometry(0.3, 0.15, 4, 12);
+            const ropeMat = new THREE.MeshPhongMaterial({ color: 0xC8A860, shininess: 8 });
+            // Main hull with bow/stern taper
+            const hullGeo = new THREE.CylinderGeometry(0.3, 0.15, 4, 14, 8);
+            const hp = hullGeo.attributes.position;
+            for (let v = 0; v < hp.count; v++) {
+                const y = hp.getY(v);
+                const taper = 1 - Math.pow(Math.abs(y) / 2, 2.5) * 0.8;
+                hp.setX(v, hp.getX(v) * Math.max(0.1, taper));
+                hp.setZ(v, hp.getZ(v) * Math.max(0.15, taper));
+            }
+            hullGeo.computeVertexNormals();
             const hull = new THREE.Mesh(hullGeo, woodMat);
             hull.rotation.z = Math.PI / 2;
             hull.castShadow = true;
             group.add(hull);
-            // Outrigger float
-            const float = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.08, 2.5, 8), woodMat);
+            // Gunwale (top rim)
+            const gunwale = new THREE.Mesh(
+                new THREE.TorusGeometry(0.28, 0.02, 4, 14, Math.PI),
+                woodMat
+            );
+            gunwale.position.y = 0.15;
+            gunwale.rotation.y = Math.PI / 2;
+            gunwale.scale.x = 5.5;
+            group.add(gunwale);
+            // Outrigger float with tapered ends
+            const floatGeo = new THREE.CylinderGeometry(0.1, 0.06, 2.5, 8, 6);
+            const fp = floatGeo.attributes.position;
+            for (let v = 0; v < fp.count; v++) {
+                const y = fp.getY(v);
+                const taper = 1 - Math.pow(Math.abs(y) / 1.25, 3) * 0.7;
+                fp.setX(v, fp.getX(v) * Math.max(0.2, taper));
+                fp.setZ(v, fp.getZ(v) * Math.max(0.2, taper));
+            }
+            floatGeo.computeVertexNormals();
+            const float = new THREE.Mesh(floatGeo, woodMat);
             float.rotation.z = Math.PI / 2;
             float.position.set(0, 0, 1.2);
             float.castShadow = true;
             group.add(float);
-            // Connecting beams
+            // Connecting beams with lashing ropes
             for (let i = -1; i <= 1; i++) {
                 const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.3, 6), woodMat);
                 beam.rotation.x = Math.PI / 2;
                 beam.position.set(i * 0.8, 0.15, 0.6);
                 beam.castShadow = true;
                 group.add(beam);
+                // Lashing wraps at each end
+                for (let le of [0, 1.1]) {
+                    const lash = new THREE.Mesh(
+                        new THREE.TorusGeometry(0.05, 0.008, 4, 8),
+                        ropeMat
+                    );
+                    lash.position.set(i * 0.8, 0.15, le);
+                    group.add(lash);
+                }
             }
+            // Small seat plank
+            const seat = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.03, 0.25), woodMat);
+            seat.position.set(0, 0.2, 0);
+            group.add(seat);
             return group;
         }
         const outrigger = createOutrigger();
@@ -2153,36 +3178,39 @@
         function createRockFormations() {
             const group = new THREE.Group();
             const rockMat = new THREE.MeshPhongMaterial({ map: stoneTex, color: 0x5A5A5A, shininess: 12 });
-            // Volcanic rock cluster — east side
+            // Volcanic rock cluster — east side (higher subdiv + multi-frequency noise)
             for (let i = 0; i < 30; i++) {
-                const geo = new THREE.IcosahedronGeometry(0.5 + Math.random() * 1.5, 2);
+                const rSize = 0.5 + Math.random() * 1.5;
+                const geo = new THREE.IcosahedronGeometry(rSize, 3);
                 const pos = geo.attributes.position;
                 for (let j = 0; j < pos.count; j++) {
                     const x = pos.getX(j), y = pos.getY(j), z = pos.getZ(j);
-                    const d = 1 + (Math.random() - 0.5) * 0.3;
+                    const n1 = (Math.random() - 0.5) * 0.25;
+                    const n2 = Math.sin(x * 4 + z * 3) * 0.06;
+                    const d = 1 + n1 + n2;
                     pos.setXYZ(j, x * d, y * d * 0.7, z * d);
                 }
                 geo.computeVertexNormals();
                 const rock = new THREE.Mesh(geo, rockMat);
-                rock.position.set(
-                    130 + Math.random() * 50,
-                    Math.random() * 0.5,
-                    -20 + Math.random() * 100
-                );
+                rock.position.set(130 + Math.random() * 50, Math.random() * 0.5, -20 + Math.random() * 100);
                 rock.rotation.set(Math.random(), Math.random(), Math.random());
                 rock.castShadow = true;
                 rock.receiveShadow = true;
                 group.add(rock);
             }
-            // Scattered beach rocks
+            // Scattered beach rocks (also higher subdiv)
             for (let i = 0; i < 15; i++) {
-                const geo = new THREE.IcosahedronGeometry(0.3 + Math.random() * 0.8, 2);
+                const rSize = 0.3 + Math.random() * 0.8;
+                const geo = new THREE.IcosahedronGeometry(rSize, 3);
+                const pos = geo.attributes.position;
+                for (let j = 0; j < pos.count; j++) {
+                    const x = pos.getX(j), y = pos.getY(j), z = pos.getZ(j);
+                    const d = 1 + (Math.random() - 0.5) * 0.2 + Math.sin(x * 6) * 0.04;
+                    pos.setXYZ(j, x * d, y * d * 0.6, z * d);
+                }
+                geo.computeVertexNormals();
                 const rock = new THREE.Mesh(geo, rockMat);
-                rock.position.set(
-                    (Math.random() - 0.5) * 300,
-                    0.15,
-                    -145 + Math.random() * 15
-                );
+                rock.position.set((Math.random() - 0.5) * 300, 0.15, -145 + Math.random() * 15);
                 rock.castShadow = true;
                 group.add(rock);
             }
@@ -2195,47 +3223,72 @@
             const group = new THREE.Group();
             const fernMat = new THREE.MeshPhongMaterial({ color: 0x1B6B1B, map: leafTex, side: THREE.DoubleSide, shininess: 12 });
             const bushMat = new THREE.MeshPhongMaterial({ color: 0x2D7A2D, shininess: 8 });
-            // Dense ferns in the jungle zone
+            // Dense ferns — leaflet serrations via vertex displacement
+            const darkFernMat = new THREE.MeshPhongMaterial({ color: 0x156015, map: leafTex, side: THREE.DoubleSide, shininess: 10 });
             for (let i = 0; i < 80; i++) {
                 const fern = new THREE.Group();
-                for (let f = 0; f < 4; f++) {
-                    const frondGeo = new THREE.PlaneGeometry(0.4, 1.2, 1, 4);
+                const frondCount = 4 + Math.floor(Math.random() * 3);
+                for (let f = 0; f < frondCount; f++) {
+                    const fLen = 1.0 + Math.random() * 0.5;
+                    const frondGeo = new THREE.PlaneGeometry(0.4, fLen, 3, 8);
                     const fp = frondGeo.attributes.position;
                     for (let v = 0; v < fp.count; v++) {
-                        const vy = fp.getY(v);
-                        fp.setZ(v, -vy * vy * 0.1);
+                        const vy = fp.getY(v), vx = fp.getX(v);
+                        const t = (vy + fLen / 2) / fLen;
+                        // Drooping curve
+                        fp.setZ(v, -t * t * fLen * 0.12);
+                        // Taper toward tip
+                        fp.setX(v, vx * (1 - t * 0.7));
+                        // Leaflet serration (zigzag at edges)
+                        if (Math.abs(vx) > 0.08) {
+                            const zigzag = Math.sin(vy * 10) * 0.02 * (Math.abs(vx) / 0.2);
+                            fp.setZ(v, fp.getZ(v) + zigzag);
+                        }
                     }
                     frondGeo.computeVertexNormals();
-                    const frond = new THREE.Mesh(frondGeo, fernMat);
-                    const angle = (Math.PI * 2 / 4) * f + Math.random() * 0.3;
-                    frond.position.set(Math.cos(angle) * 0.2, 0.5, Math.sin(angle) * 0.2);
+                    const mat = f % 2 === 0 ? fernMat : darkFernMat;
+                    const frond = new THREE.Mesh(frondGeo, mat);
+                    const angle = (Math.PI * 2 / frondCount) * f + Math.random() * 0.3;
+                    frond.position.set(Math.cos(angle) * 0.15, 0.4, Math.sin(angle) * 0.15);
                     frond.rotation.y = -angle;
-                    frond.rotation.x = 0.5 + Math.random() * 0.3;
+                    frond.rotation.x = 0.4 + Math.random() * 0.4;
                     frond.castShadow = true;
                     fern.add(frond);
                 }
-                fern.position.set(
-                    (Math.random() - 0.5) * 350,
-                    0,
-                    80 + Math.random() * 80
+                // Curled fiddlehead at center
+                const fiddle = new THREE.Mesh(
+                    new THREE.TorusGeometry(0.05, 0.015, 4, 8, Math.PI * 1.5),
+                    new THREE.MeshPhongMaterial({ color: 0x2D6B1A, shininess: 10 })
                 );
+                fiddle.position.y = 0.5;
+                fiddle.rotation.x = -Math.PI / 4;
+                fern.add(fiddle);
+                fern.position.set((Math.random() - 0.5) * 350, 0, 80 + Math.random() * 80);
                 group.add(fern);
             }
-            // Round bushes scattered across the map
+            // Layered bushes — multiple overlapping spheres for volume
+            const bushColors = [0x2D7A2D, 0x3A8A3A, 0x1F6B1F];
             for (let i = 0; i < 40; i++) {
-                const size = 0.5 + Math.random() * 1.0;
-                const bush = new THREE.Mesh(
-                    new THREE.SphereGeometry(size, 8, 8),
-                    bushMat
-                );
-                bush.scale.y = 0.6 + Math.random() * 0.3;
-                bush.position.set(
+                const bushGroup = new THREE.Group();
+                const baseSize = 0.5 + Math.random() * 1.0;
+                const layers = 2 + Math.floor(Math.random() * 2);
+                for (let l = 0; l < layers; l++) {
+                    const lSize = baseSize * (1 - l * 0.2);
+                    const bush = new THREE.Mesh(
+                        new THREE.SphereGeometry(lSize, 10, 8),
+                        new THREE.MeshPhongMaterial({ color: bushColors[l % bushColors.length], shininess: 8 })
+                    );
+                    bush.scale.y = 0.6 + Math.random() * 0.3;
+                    bush.position.set((Math.random() - 0.5) * lSize * 0.3, l * lSize * 0.2, (Math.random() - 0.5) * lSize * 0.3);
+                    bush.castShadow = true;
+                    bushGroup.add(bush);
+                }
+                bushGroup.position.set(
                     (Math.random() - 0.5) * 340,
-                    size * 0.4,
+                    baseSize * 0.3,
                     -60 + Math.random() * 220
                 );
-                bush.castShadow = true;
-                group.add(bush);
+                group.add(bushGroup);
             }
             return group;
         }
@@ -2293,22 +3346,76 @@
             const cliffMat = new THREE.MeshPhongMaterial({ map: stoneTex, color: 0x6A6A5A, shininess: 8 });
             const darkCliffMat = new THREE.MeshPhongMaterial({ map: stoneTex, color: 0x4A4A3A, shininess: 6 });
 
-            // Main cliff body
-            const cliff = new THREE.Mesh(new THREE.BoxGeometry(8, 12, 6), cliffMat);
+            // Main cliff body — with vertex displacement for natural rock face
+            const cliffGeo = new THREE.BoxGeometry(8, 12, 6, 8, 12, 6);
+            const cp = cliffGeo.attributes.position;
+            for (let i = 0; i < cp.count; i++) {
+                if (cp.getZ(i) > 2.5) {
+                    cp.setZ(i, cp.getZ(i) + (Math.random() - 0.5) * 0.6);
+                    cp.setX(i, cp.getX(i) + (Math.random() - 0.5) * 0.3);
+                }
+            }
+            cliffGeo.computeVertexNormals();
+            const cliff = new THREE.Mesh(cliffGeo, cliffMat);
             cliff.position.y = 6;
             cliff.castShadow = true;
             cliff.receiveShadow = true;
             group.add(cliff);
 
-            // Rock ledges on cliff face
-            for (let i = 0; i < 4; i++) {
+            // Overhang — sloped rock jutting out at the top
+            const overhangGeo = new THREE.BoxGeometry(6, 1.2, 2.5, 4, 2, 3);
+            const op = overhangGeo.attributes.position;
+            for (let i = 0; i < op.count; i++) {
+                if (op.getZ(i) > 0.8) {
+                    op.setY(i, op.getY(i) - op.getZ(i) * 0.4);
+                }
+            }
+            overhangGeo.computeVertexNormals();
+            const overhang = new THREE.Mesh(overhangGeo, darkCliffMat);
+            overhang.position.set(0, 11.8, 3.8);
+            overhang.castShadow = true;
+            group.add(overhang);
+
+            // Stepped ledges on cliff face — varied sizes with slight tilt
+            for (let i = 0; i < 5; i++) {
+                const lw = 2.5 + Math.random() * 3;
                 const ledge = new THREE.Mesh(
-                    new THREE.BoxGeometry(3 + Math.random() * 3, 0.4, 1.2),
+                    new THREE.BoxGeometry(lw, 0.35 + Math.random() * 0.2, 1.0 + Math.random() * 0.5),
                     darkCliffMat
                 );
-                ledge.position.set((Math.random() - 0.5) * 2, 2 + i * 2.5, 3.2);
+                ledge.position.set((Math.random() - 0.5) * 2.5, 1.5 + i * 2.2, 3.3);
+                ledge.rotation.z = (Math.random() - 0.5) * 0.08;
                 ledge.castShadow = true;
                 group.add(ledge);
+            }
+
+            // Wet streak stains running down cliff face
+            const wetMat = new THREE.MeshPhongMaterial({
+                color: 0x3A4A3A, transparent: true, opacity: 0.35, shininess: 40
+            });
+            for (let i = 0; i < 3; i++) {
+                const streak = new THREE.Mesh(
+                    new THREE.PlaneGeometry(0.3 + Math.random() * 0.4, 6 + Math.random() * 4),
+                    wetMat
+                );
+                streak.position.set(-1.5 + i * 1.5, 5 + Math.random() * 3, 3.08);
+                group.add(streak);
+            }
+
+            // Moss patches on cliff face
+            const mossMat = new THREE.MeshPhongMaterial({ color: 0x3A6A2A, transparent: true, opacity: 0.6, shininess: 5 });
+            for (let i = 0; i < 8; i++) {
+                const moss = new THREE.Mesh(
+                    new THREE.CircleGeometry(0.3 + Math.random() * 0.5, 8),
+                    mossMat
+                );
+                moss.position.set(
+                    -3 + Math.random() * 6,
+                    1 + Math.random() * 9,
+                    3.07
+                );
+                moss.rotation.z = Math.random() * Math.PI;
+                group.add(moss);
             }
 
             // Cliff vegetation — ferns growing from cracks
@@ -2352,16 +3459,32 @@
             cascade.position.set(0, 6, 3.02);
             group.add(cascade);
 
-            // Pool at base — rippled surface
-            const poolGeo = new THREE.CylinderGeometry(4, 4, 0.3, 32);
+            // Pool at base — rippled surface with depth color
+            const poolGeo = new THREE.CylinderGeometry(4.5, 4, 0.5, 32, 1);
             const pool = new THREE.Mesh(poolGeo, new THREE.MeshPhongMaterial({
-                color: 0x2288BB, transparent: true, opacity: 0.7,
-                shininess: 120, specular: 0x99CCFF, envMap: envMap, reflectivity: 0.3
+                color: 0x1A7799, transparent: true, opacity: 0.75,
+                shininess: 120, specular: 0x99CCFF, envMap: envMap, reflectivity: 0.35
             }));
-            pool.position.y = 0.15;
+            pool.position.y = 0.25;
             pool.receiveShadow = true;
             group.add(pool);
             group.userData.pool = pool;
+
+            // Pool rim rocks — arranged around the base
+            const rimRockMat = new THREE.MeshPhongMaterial({ map: stoneTex, color: 0x7A7A6A, shininess: 8 });
+            for (let i = 0; i < 14; i++) {
+                const angle = (i / 14) * Math.PI * 2;
+                const rr = 4.2 + Math.random() * 0.5;
+                const rimRock = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.4 + Math.random() * 0.5, 6, 5),
+                    rimRockMat
+                );
+                rimRock.scale.set(1 + Math.random() * 0.5, 0.5 + Math.random() * 0.3, 1 + Math.random() * 0.4);
+                rimRock.position.set(Math.cos(angle) * rr, 0.2, Math.sin(angle) * rr + 3);
+                rimRock.rotation.y = Math.random() * Math.PI;
+                rimRock.castShadow = true;
+                group.add(rimRock);
+            }
 
             // Splash mist particles at base
             const mistCount = 50;
@@ -2403,38 +3526,81 @@
 
         function createSeagulls() {
             const group = new THREE.Group();
-            const wingMat = new THREE.MeshPhongMaterial({ color: 0xEEEEEE, shininess: 15 });
+            const bodyMat = new THREE.MeshPhongMaterial({ color: 0xFAFAFA, shininess: 20 });
+            const wingMat = new THREE.MeshPhongMaterial({ color: 0xEEEEEE, side: THREE.DoubleSide, shininess: 15 });
+            const wingTipMat = new THREE.MeshPhongMaterial({ color: 0x444444, side: THREE.DoubleSide, shininess: 10 });
+            const beakMat = new THREE.MeshPhongMaterial({ color: 0xFFAA00, shininess: 30 });
+            const eyeMat = new THREE.MeshPhongMaterial({ color: 0x111111, shininess: 40 });
 
-            // Create 12 flying seagulls
             for (let i = 0; i < 12; i++) {
                 const seagull = new THREE.Group();
                 const angle = (Math.PI * 2 / 6) * i;
                 const distance = 80 + Math.random() * 30;
 
-                // Body
-                const body = new THREE.Mesh(
-                    new THREE.SphereGeometry(0.2, 8, 8),
-                    new THREE.MeshPhongMaterial({ color: 0xFFFFFF, shininess: 20 })
-                );
+                // Streamlined body (elongated sphere)
+                const body = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 8), bodyMat);
+                body.scale.set(0.8, 0.7, 1.4);
                 body.castShadow = true;
                 seagull.add(body);
 
                 // Head
-                const head = new THREE.Mesh(
-                    new THREE.SphereGeometry(0.12, 8, 8),
-                    new THREE.MeshPhongMaterial({ color: 0xEEEEEE, shininess: 15 })
-                );
-                head.position.z = 0.2;
-                head.castShadow = true;
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), bodyMat);
+                head.position.set(0, 0.06, 0.28);
                 seagull.add(head);
 
-                // Wings
+                // Beak (cone)
+                const beak = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.12, 6), beakMat);
+                beak.position.set(0, 0.04, 0.38);
+                beak.rotation.x = -Math.PI / 2;
+                seagull.add(beak);
+
+                // Eyes
+                for (let e of [-1, 1]) {
+                    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.015, 4, 4), eyeMat);
+                    eye.position.set(e * 0.06, 0.08, 0.32);
+                    seagull.add(eye);
+                }
+
+                // Tail feathers (tapered flat shape)
+                const tailGeo = new THREE.PlaneGeometry(0.12, 0.2, 2, 2);
+                const tp = tailGeo.attributes.position;
+                for (let v = 0; v < tp.count; v++) {
+                    const ty = tp.getY(v);
+                    if (ty < 0) tp.setX(v, tp.getX(v) * 0.4); // narrow at tip
+                }
+                tailGeo.computeVertexNormals();
+                const tail = new THREE.Mesh(tailGeo, wingMat);
+                tail.position.set(0, 0.02, -0.28);
+                tail.rotation.x = 0.15;
+                seagull.add(tail);
+
+                // Wings with tapered shape and dark tips
                 for (let j of [-1, 1]) {
-                    const wing = new THREE.Mesh(
-                        new THREE.PlaneGeometry(0.8, 0.3),
-                        wingMat
-                    );
-                    wing.position.set(j * 0.5, 0, 0);
+                    const wingGeo = new THREE.PlaneGeometry(0.7, 0.22, 4, 2);
+                    const wp = wingGeo.attributes.position;
+                    for (let v = 0; v < wp.count; v++) {
+                        const wx = wp.getX(v);
+                        // Taper wing toward tip
+                        if (Math.abs(wx) > 0.2) {
+                            const taper = 1 - (Math.abs(wx) - 0.2) / 0.15 * 0.5;
+                            wp.setY(v, wp.getY(v) * Math.max(0.3, taper));
+                        }
+                    }
+                    wingGeo.computeVertexNormals();
+                    // Add vertex colors for wing tips
+                    const wColors = new Float32Array(wp.count * 3);
+                    for (let v = 0; v < wp.count; v++) {
+                        const wx = Math.abs(wp.getX(v));
+                        const tipFade = wx > 0.25 ? Math.max(0.3, 1 - (wx - 0.25) / 0.1) : 1;
+                        wColors[v * 3] = tipFade;
+                        wColors[v * 3 + 1] = tipFade;
+                        wColors[v * 3 + 2] = tipFade;
+                    }
+                    wingGeo.setAttribute('color', new THREE.BufferAttribute(wColors, 3));
+                    const wMat = wingMat.clone();
+                    wMat.vertexColors = true;
+                    const wing = new THREE.Mesh(wingGeo, wMat);
+                    wing.position.set(j * 0.4, 0.03, 0);
                     wing.rotation.z = j * 0.3;
                     wing.castShadow = true;
                     seagull.add(wing);
@@ -2462,12 +3628,20 @@
                 this.isLocal = isLocal;
                 this.animTime = 0;
                 this.isMoving = false;
+                this.moveBlend = 0; // 0=idle, 1=full walk (smooth transition)
+                this.currentFacing = 0; // smoothed facing angle
+                this.prevSpeed = 0;
+                this.idleTimer = 0; // time spent idle for varied idle anims
+                this.stridePhase = 0; // continuous stride phase for natural gait
+                this.isThrowing = false;
+                this.throwAnimTime = 0;
                 // Limb references for animation
                 this.leftArm = null;
                 this.rightArm = null;
                 this.leftLeg = null;
                 this.rightLeg = null;
                 this.torso = null;
+                this.head = null;
                 this.mesh = this.createMesh();
                 this.position = new THREE.Vector3(0, 0, 0);
                 this.velocity = new THREE.Vector3(0, 0, 0);
@@ -2514,6 +3688,7 @@
                     head.castShadow = true;
                     head.position.y = 1.1;
                     group.add(head);
+                    this.head = head;
 
                     // Brow ridge
                     const browGeo = new THREE.BoxGeometry(0.45, 0.06, 0.15);
@@ -2542,19 +3717,40 @@
                         group.add(pupil);
                     }
 
+                    // Eyelids (half-sphere caps above each eye)
+                    for (let i of [-1, 1]) {
+                        const lidGeo = new THREE.SphereGeometry(0.095, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.4);
+                        const lid = new THREE.Mesh(lidGeo, skinMat);
+                        lid.position.set(i * 0.12, 1.18, 0.22);
+                        lid.rotation.x = 0.2;
+                        group.add(lid);
+                    }
+
                     // Nose
                     const nose = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), darkSkinMat);
                     nose.scale.set(1, 0.8, 1.3);
                     nose.position.set(0, 1.07, 0.28);
                     group.add(nose);
 
-                    // Ears — small spheres on sides of head
+                    // Ears — pointed elven-style with inner detail
                     for (let i of [-1, 1]) {
                         const ear = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 8), darkSkinMat);
-                        ear.scale.set(0.8, 1, 0.6);
+                        ear.scale.set(0.8, 1.2, 0.5);
                         ear.position.set(i * 0.22, 1.12, 0.1);
                         ear.castShadow = true;
                         group.add(ear);
+                        // Ear tip (pointed)
+                        const earTip = new THREE.Mesh(new THREE.ConeGeometry(0.02, 0.04, 4), skinMat);
+                        earTip.position.set(i * 0.26, 1.17, 0.1);
+                        earTip.rotation.z = i * 0.5;
+                        group.add(earTip);
+                        // Inner ear (darker)
+                        const inner = new THREE.Mesh(
+                            new THREE.SphereGeometry(0.03, 6, 4, 0, Math.PI),
+                            new THREE.MeshPhongMaterial({ color: 0x8B5E3C, shininess: 8 })
+                        );
+                        inner.position.set(i * 0.22, 1.12, 0.12);
+                        group.add(inner);
                     }
 
                     // Mouth — wide smile
@@ -2661,11 +3857,22 @@
                         forearm.position.y = -0.32;
                         forearm.castShadow = true;
                         armPivot.add(forearm);
-                        // Hand
+                        // Hand with finger bumps
                         const hand = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 8), skinMat);
                         hand.position.y = -0.45;
+                        hand.scale.set(0.9, 0.7, 1.1);
                         hand.castShadow = true;
                         armPivot.add(hand);
+                        // Finger bumps (4 small spheres)
+                        for (let fg = 0; fg < 4; fg++) {
+                            const finger = new THREE.Mesh(new THREE.SphereGeometry(0.015, 4, 4), skinMat);
+                            finger.position.set((fg - 1.5) * 0.015, -0.47, 0.04);
+                            armPivot.add(finger);
+                        }
+                        // Thumb
+                        const thumb = new THREE.Mesh(new THREE.SphereGeometry(0.018, 4, 4), skinMat);
+                        thumb.position.set(side * 0.04, -0.44, 0.02);
+                        armPivot.add(thumb);
                         group.add(armPivot);
                         if (side === -1) this.leftArm = armPivot;
                         else this.rightArm = armPivot;
@@ -2768,6 +3975,7 @@
                     head.castShadow = true;
                     head.position.y = 1.3;
                     group.add(head);
+                    this.head = head;
 
                     // Eyes
                     this.eyes = [];
@@ -2857,24 +4065,45 @@
                         group.add(strap);
                     }
 
-                    // Binoculars attached to pack
+                    // Binoculars with glass lens effect and rubber grip
                     const binoMat = new THREE.MeshPhongMaterial({ color: 0x222222, shininess: 50 });
                     for (let b of [-1, 1]) {
                         const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 0.12, 8), binoMat);
                         tube.rotation.x = Math.PI / 2;
                         tube.position.set(b * 0.04, 0.95, -0.28);
                         group.add(tube);
-                        // Lens
-                        const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.01, 8),
-                            new THREE.MeshPhongMaterial({ color: 0x4488CC, shininess: 80 }));
+                        // Rubber grip ring
+                        const grip = new THREE.Mesh(
+                            new THREE.TorusGeometry(0.033, 0.005, 4, 8),
+                            new THREE.MeshPhongMaterial({ color: 0x333333, shininess: 10 })
+                        );
+                        grip.position.set(b * 0.04, 0.95, -0.25);
+                        group.add(grip);
+                        // Objective lens with glass reflection
+                        const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.033, 0.033, 0.008, 10),
+                            new THREE.MeshPhongMaterial({ color: 0x4488CC, shininess: 90, specular: 0xFFFFFF, transparent: true, opacity: 0.8 }));
                         lens.rotation.x = Math.PI / 2;
                         lens.position.set(b * 0.04, 0.95, -0.34);
                         group.add(lens);
+                        // Lens rim
+                        const lensRim = new THREE.Mesh(
+                            new THREE.TorusGeometry(0.034, 0.003, 4, 10),
+                            binoMat
+                        );
+                        lensRim.position.set(b * 0.04, 0.95, -0.345);
+                        group.add(lensRim);
                     }
                     // Binocular bridge
                     const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.02, 0.06), binoMat);
                     bridge.position.set(0, 0.95, -0.28);
                     group.add(bridge);
+                    // Neck strap
+                    const binoStrap = new THREE.Mesh(
+                        new THREE.CylinderGeometry(0.006, 0.006, 0.3, 6),
+                        new THREE.MeshPhongMaterial({ color: 0x444444, shininess: 10 })
+                    );
+                    binoStrap.position.set(0, 1.05, -0.22);
+                    group.add(binoStrap);
 
                     // Compass on belt
                     const compass = new THREE.Mesh(
@@ -2893,19 +4122,44 @@
                     compassFace.rotation.x = Math.PI / 2;
                     group.add(compassFace);
 
-                    // Watch on left wrist
-                    const watch = new THREE.Mesh(
+                    // Watch on left wrist — case with band
+                    const watchCaseMat = new THREE.MeshPhongMaterial({ color: 0x333333, shininess: 50 });
+                    const watchCase = new THREE.Mesh(
                         new THREE.BoxGeometry(0.05, 0.04, 0.06),
-                        new THREE.MeshPhongMaterial({ color: 0x333333, shininess: 40 })
+                        watchCaseMat
                     );
-                    watch.position.set(-0.28, 0.5, 0.05);
-                    group.add(watch);
+                    watchCase.position.set(-0.28, 0.5, 0.05);
+                    group.add(watchCase);
+                    // Watch face — glowing LCD
                     const watchFace = new THREE.Mesh(
-                        new THREE.BoxGeometry(0.03, 0.025, 0.005),
-                        new THREE.MeshPhongMaterial({ color: 0x88CCAA, shininess: 60, emissive: 0x224422, emissiveIntensity: 0.3 })
+                        new THREE.BoxGeometry(0.035, 0.028, 0.005),
+                        new THREE.MeshPhongMaterial({ color: 0x88CCAA, shininess: 70, emissive: 0x224422, emissiveIntensity: 0.4, specular: 0x446644 })
                     );
-                    watchFace.position.set(-0.28, 0.5, 0.08);
+                    watchFace.position.set(-0.28, 0.5, 0.081);
                     group.add(watchFace);
+                    // Watch bezel ring
+                    const bezel = new THREE.Mesh(
+                        new THREE.TorusGeometry(0.025, 0.004, 4, 10),
+                        new THREE.MeshPhongMaterial({ color: 0x444444, shininess: 60 })
+                    );
+                    bezel.position.set(-0.28, 0.5, 0.082);
+                    group.add(bezel);
+                    // Watch band — two straps wrapping around wrist
+                    const bandMat = new THREE.MeshPhongMaterial({ color: 0x2A2A2A, shininess: 20 });
+                    const bandTop = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.025), bandMat);
+                    bandTop.position.set(-0.28, 0.525, 0.05);
+                    group.add(bandTop);
+                    const bandBot = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.025), bandMat);
+                    bandBot.position.set(-0.28, 0.475, 0.05);
+                    group.add(bandBot);
+                    // Watch button on side
+                    const watchBtn = new THREE.Mesh(
+                        new THREE.CylinderGeometry(0.005, 0.005, 0.01, 6),
+                        new THREE.MeshPhongMaterial({ color: 0x555555, shininess: 50 })
+                    );
+                    watchBtn.rotation.z = Math.PI / 2;
+                    watchBtn.position.set(-0.305, 0.505, 0.05);
+                    group.add(watchBtn);
 
                     // Arms
                     for (let side of [-1, 1]) {
@@ -2977,6 +4231,31 @@
                         sole.position.set(0, -0.505, 0.02);
                         legPivot.add(sole);
 
+                        // Boot laces — horizontal lines across the front
+                        const laceMat = new THREE.MeshPhongMaterial({ color: 0x554433, shininess: 15 });
+                        for (let l = 0; l < 3; l++) {
+                            const lace = new THREE.Mesh(
+                                new THREE.BoxGeometry(0.06, 0.005, 0.005),
+                                laceMat
+                            );
+                            lace.position.set(0, -0.435 + l * 0.02, 0.08);
+                            legPivot.add(lace);
+                        }
+                        // Boot tongue — small flap behind laces
+                        const tongue = new THREE.Mesh(
+                            new THREE.BoxGeometry(0.05, 0.04, 0.008),
+                            new THREE.MeshPhongMaterial({ color: 0x4A3520, shininess: 12 })
+                        );
+                        tongue.position.set(0, -0.415, 0.078);
+                        legPivot.add(tongue);
+                        // Boot heel tab
+                        const heelTab = new THREE.Mesh(
+                            new THREE.BoxGeometry(0.04, 0.03, 0.008),
+                            new THREE.MeshPhongMaterial({ color: 0x2A1A0A, shininess: 15 })
+                        );
+                        heelTab.position.set(0, -0.42, -0.06);
+                        legPivot.add(heelTab);
+
                         group.add(legPivot);
                         if (side === -1) this.leftLeg = legPivot;
                         else this.rightLeg = legPivot;
@@ -2993,77 +4272,192 @@
                 this.position.y = 0;
                 this.mesh.position.copy(this.position);
 
-                // Walking animation
+                // ---- SPEED & BLEND ----
                 const speed = this.velocity.length();
                 this.isMoving = speed > 0.5;
-                if (this.isMoving) {
-                    this.animTime += deltaTime * speed * 1.2;
-                    const swing = Math.sin(this.animTime * 4) * 0.6;
-                    const armSwing = Math.sin(this.animTime * 4) * 0.5;
-                    // Legs swing opposite to each other
-                    if (this.leftLeg) this.leftLeg.rotation.x = swing;
-                    if (this.rightLeg) this.rightLeg.rotation.x = -swing;
-                    // Arms swing opposite to legs
-                    if (this.leftArm) this.leftArm.rotation.x = -armSwing;
-                    if (this.rightArm) this.rightArm.rotation.x = armSwing;
-                    // Subtle torso bob (set to base + offset, not accumulate)
-                    if (this.torso) {
-                        const baseY = this.role === 'menehune' ? 0.55 : 0.7;
-                        this.torso.position.y = baseY + Math.sin(this.animTime * 8) * 0.005;
-                    }
-                } else {
-                    // Idle — subtle breathing sway
-                    this.animTime += deltaTime;
-                    const breath = Math.sin(this.animTime * 2) * 0.02;
-                    if (this.leftArm) this.leftArm.rotation.x = breath;
-                    if (this.rightArm) this.rightArm.rotation.x = -breath;
-                    if (this.leftLeg) this.leftLeg.rotation.x = 0;
-                    if (this.rightLeg) this.rightLeg.rotation.x = 0;
+                // Smooth blend between idle(0) and walk(1) — prevents hard snap
+                const targetBlend = this.isMoving ? Math.min(1, speed / 6) : 0;
+                this.moveBlend += (targetBlend - this.moveBlend) * Math.min(1, deltaTime * 8);
+
+                // ---- SMOOTH FACING ----
+                if (speed > 0.5) {
+                    const targetAngle = Math.atan2(this.velocity.x, this.velocity.z);
+                    // Shortest-path angular lerp
+                    let angleDiff = targetAngle - this.currentFacing;
+                    while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+                    while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+                    this.currentFacing += angleDiff * Math.min(1, deltaTime * 10);
+                }
+                this.mesh.rotation.y = this.currentFacing;
+
+                // ---- STRIDE PHASE ----
+                // Continuous phase accumulation for smooth gait cycle
+                const strideRate = this.isMoving ? speed * 0.6 : 0;
+                this.stridePhase += strideRate * deltaTime;
+                this.animTime += deltaTime;
+
+                const mb = this.moveBlend; // shorthand
+                const phase = this.stridePhase;
+
+                // ---- GAIT PARAMETERS (scale by speed for walk vs run) ----
+                const speedNorm = Math.min(1, speed / 10); // 0=slow walk, 1=full run
+                const legSwingAmp = 0.35 + speedNorm * 0.35; // 0.35 walk → 0.7 run
+                const armSwingAmp = 0.25 + speedNorm * 0.3;
+                const hipSwayAmp = 0.015 + speedNorm * 0.01;
+                const shoulderTiltAmp = 0.03 + speedNorm * 0.04;
+                const headBobAmp = 0.01 + speedNorm * 0.015;
+                const torsoLeanAmp = 0.02 + speedNorm * 0.04; // forward lean when running
+
+                // ---- WALKING ANIMATION ----
+                // Natural gait: legs use sin, with slight knee-bend emphasis via pow
+                const legSin = Math.sin(phase * 4);
+                const legSwing = Math.sign(legSin) * Math.pow(Math.abs(legSin), 0.85) * legSwingAmp;
+                // Arms counter-swing (opposite legs, slightly delayed phase)
+                const armSin = Math.sin(phase * 4 + 0.15);
+                const armSwing = armSin * armSwingAmp;
+
+                // ---- IDLE ANIMATION ----
+                this.idleTimer = this.isMoving ? 0 : this.idleTimer + deltaTime;
+                const breathRate = 1.8 + Math.sin(this.animTime * 0.3) * 0.3; // variable breathing
+                const breathAmp = 0.018;
+                const breath = Math.sin(this.animTime * breathRate) * breathAmp;
+                // Weight shift — subtle side-to-side after standing still a moment
+                const weightShift = this.idleTimer > 1.5 ? Math.sin(this.animTime * 0.7) * 0.02 : 0;
+                // Idle look-around — tiny head rotation
+                const idleLookX = this.idleTimer > 2.0 ? Math.sin(this.animTime * 0.5) * 0.06 : 0;
+                const idleLookY = this.idleTimer > 2.0 ? Math.sin(this.animTime * 0.35 + 1) * 0.08 : 0;
+
+                // ---- BLEND & APPLY ----
+                // Legs
+                if (this.leftLeg) {
+                    this.leftLeg.rotation.x = mb * legSwing + (1 - mb) * weightShift;
+                    this.leftLeg.rotation.z = (1 - mb) * weightShift * 0.3;
+                }
+                if (this.rightLeg) {
+                    this.rightLeg.rotation.x = mb * -legSwing + (1 - mb) * -weightShift;
+                    this.rightLeg.rotation.z = (1 - mb) * -weightShift * 0.3;
+                }
+                // Arms (counter-swing walking, breathing idle)
+                if (this.leftArm) {
+                    this.leftArm.rotation.x = mb * -armSwing + (1 - mb) * breath;
+                    this.leftArm.rotation.z = mb * hipSwayAmp * Math.sin(phase * 4) + (1 - mb) * (0.05 + breath * 0.5);
+                }
+                if (this.rightArm) {
+                    this.rightArm.rotation.x = mb * armSwing + (1 - mb) * -breath;
+                    this.rightArm.rotation.z = mb * -hipSwayAmp * Math.sin(phase * 4) + (1 - mb) * (-0.05 - breath * 0.5);
+                }
+                // Torso — bob + hip sway + forward lean
+                if (this.torso) {
+                    const baseY = this.role === 'menehune' ? 0.55 : 0.7;
+                    // Double-frequency bob (torso bobs twice per stride cycle)
+                    const bob = Math.sin(phase * 8) * headBobAmp * mb;
+                    this.torso.position.y = baseY + bob;
+                    // Hip sway (lateral shift at stride frequency)
+                    this.torso.rotation.z = mb * Math.sin(phase * 4) * hipSwayAmp;
+                    // Shoulder counter-rotation (twist opposite to hips)
+                    this.torso.rotation.y = mb * Math.sin(phase * 4) * shoulderTiltAmp;
+                    // Forward lean when running
+                    this.torso.rotation.x = mb * torsoLeanAmp * speedNorm;
+                }
+                // Head — bob with slight delay, idle look-around
+                if (this.head) {
+                    const baseHeadY = this.role === 'menehune' ? 1.1 : 1.3;
+                    const headBob = Math.sin(phase * 8 + 0.3) * headBobAmp * 0.7 * mb;
+                    this.head.position.y = baseHeadY + headBob;
+                    // Head tilts slightly into turns
+                    this.head.rotation.z = mb * Math.sin(phase * 4) * 0.02;
+                    // Idle head movement
+                    this.head.rotation.x = (1 - mb) * idleLookX;
+                    this.head.rotation.y = (1 - mb) * idleLookY;
+                }
+                // Shadow scales with movement (stretches when running)
+                if (this.shadow) {
+                    this.shadow.scale.x = 1 + mb * speedNorm * 0.15;
+                    this.shadow.scale.y = 1 - mb * speedNorm * 0.08;
                 }
 
-                // Eye tracking and blinking animation
+                // ---- THROW ANIMATION ----
+                if (this.isThrowing) {
+                    this.throwAnimTime = (this.throwAnimTime || 0) + deltaTime;
+                    const t = this.throwAnimTime;
+                    if (t < 0.15) {
+                        // Wind-up: right arm swings back, torso leans back
+                        const windUp = t / 0.15;
+                        if (this.rightArm) this.rightArm.rotation.x = -1.2 * windUp;
+                        if (this.torso) this.torso.rotation.x = -0.08 * windUp;
+                    } else if (t < 0.35) {
+                        // Release: arm swings forward fast, torso snaps forward
+                        const release = (t - 0.15) / 0.2;
+                        if (this.rightArm) this.rightArm.rotation.x = -1.2 + 2.4 * release;
+                        if (this.torso) this.torso.rotation.x = -0.08 + 0.2 * release;
+                    } else if (t < 0.6) {
+                        // Follow-through: arm settles, torso returns
+                        const settle = (t - 0.35) / 0.25;
+                        if (this.rightArm) this.rightArm.rotation.x = 1.2 * (1 - settle);
+                        if (this.torso) this.torso.rotation.x = 0.12 * (1 - settle);
+                    } else {
+                        this.isThrowing = false;
+                    }
+                }
+
+                // ---- EYE TRACKING ----
                 if (this.pupils && this.pupils.length > 0) {
-                    // Eye tracking: offset pupil Z based on movement direction
-                    const trackOffset = this.velocity.length() > 0.5 ? Math.sign(this.velocity.length()) * 0.01 : 0;
-                    this.pupils.forEach(pupil => {
-                        pupil.position.z = (this.role === 'menehune' ? 0.31 : 0.255) + trackOffset;
+                    const basePupilZ = this.role === 'menehune' ? 0.31 : 0.255;
+                    // Look toward movement direction when moving, random glance when idle
+                    let trackX = 0, trackZ = 0;
+                    if (speed > 0.5) {
+                        trackZ = 0.012; // eyes look forward when moving
+                        trackX = Math.sin(phase * 4) * 0.003; // slight side tracking
+                    } else if (this.idleTimer > 2.0) {
+                        // Random idle glancing
+                        trackX = Math.sin(this.animTime * 0.4 + 2) * 0.008;
+                        trackZ = Math.sin(this.animTime * 0.3) * 0.005;
+                    }
+                    const baseXSpread = this.role === 'menehune' ? 0.12 : 0.1;
+                    this.pupils.forEach((pupil, idx) => {
+                        pupil.position.z = basePupilZ + trackZ;
+                        const baseX = (idx === 0 ? -baseXSpread : baseXSpread);
+                        pupil.position.x = baseX + trackX;
                     });
                 }
 
-                // Blinking animation (every 3-5 seconds)
+                // ---- BLINKING (variable interval) ----
                 if (this.eyes && this.eyes.length > 0) {
-                    const blinkCycle = 4.0; // blink cycle in seconds
+                    // Blink cycle varies: faster when moving (alertness)
+                    const blinkCycle = this.isMoving ? 3.0 : 4.5;
                     const cyclePos = (this.animTime % blinkCycle) / blinkCycle;
                     let blinkScale = 1.0;
-                    if (cyclePos > 0.9 && cyclePos < 0.95) {
-                        // Blink (0.05 of cycle = 0.2 seconds at 4 second cycle)
-                        const blinkPhase = (cyclePos - 0.9) / 0.05; // 0 to 1 during blink
-                        blinkScale = 1.0 - blinkPhase * 0.9; // closes to 0.1 height
-                    } else if (cyclePos > 0.95) {
-                        // Recover from blink
-                        const recoveryPhase = (cyclePos - 0.95) / 0.05;
-                        blinkScale = 0.1 + recoveryPhase * 0.9;
+                    if (cyclePos > 0.9 && cyclePos < 0.94) {
+                        const blinkPhase = (cyclePos - 0.9) / 0.04;
+                        blinkScale = 1.0 - blinkPhase * 0.92;
+                    } else if (cyclePos > 0.94 && cyclePos < 0.98) {
+                        const recoveryPhase = (cyclePos - 0.94) / 0.04;
+                        blinkScale = 0.08 + recoveryPhase * 0.92;
+                    }
+                    // Double-blink occasionally (every ~3rd cycle)
+                    const dblCycle = (this.animTime % (blinkCycle * 3)) / (blinkCycle * 3);
+                    if (dblCycle > 0.95 && dblCycle < 0.97) {
+                        blinkScale = Math.min(blinkScale, 0.2);
                     }
                     this.eyes.forEach(eye => {
                         eye.scale.y = blinkScale;
                     });
                 }
 
-                // Grass skirt physics animation (menehune only)
+                // Grass skirt physics animation (menehune only) — blended with movement
                 if (this.role === 'menehune' && this.skirtStrips && this.skirtStrips.length > 0) {
-                    if (this.isMoving) {
-                        // During movement: skirt sways based on velocity direction
-                        this.skirtStrips.forEach((strip, i) => {
-                            const baseRot = strip.userData.baseRot || 0;
-                            strip.rotation.x = baseRot + Math.sin(this.animTime * 6 + i * 0.5) * 0.3;
-                        });
-                    } else {
-                        // Idle: gentle sway
-                        this.skirtStrips.forEach((strip, i) => {
-                            const baseRot = strip.userData.baseRot || 0;
-                            strip.rotation.x = baseRot + Math.sin(this.animTime * 1.5 + i * 0.4) * 0.05;
-                        });
-                    }
+                    this.skirtStrips.forEach((strip, i) => {
+                        const baseRot = strip.userData.baseRot || 0;
+                        // Walking: vigorous stride-synced sway with speed scaling
+                        const walkSway = Math.sin(phase * 6 + i * 0.5) * (0.15 + speedNorm * 0.25);
+                        // Inertia lag — strips trail behind movement
+                        const inertiaLag = mb * Math.sin(phase * 4 + i * 0.3) * 0.08;
+                        // Idle: gentle breeze-like sway with varied frequency per strip
+                        const idleSway = Math.sin(this.animTime * (1.3 + i * 0.1) + i * 0.4) * 0.04;
+                        strip.rotation.x = baseRot + mb * (walkSway + inertiaLag) + (1 - mb) * idleSway;
+                        // Lateral swing during walking
+                        strip.rotation.z = (strip.userData.baseRotZ || 0) + mb * Math.sin(phase * 4 + i * 0.7) * 0.06;
+                    });
                 }
             }
 
@@ -3091,28 +4485,51 @@
                 const now = Date.now();
                 if (now - this.lastThrowTime < 300) return;
                 this.lastThrowTime = now;
+                // Trigger throw animation (arm wind-up and release)
+                this.throwAnimTime = 0;
+                this.isThrowing = true;
                 const coconut = {
                     position: this.position.clone().add(new THREE.Vector3(0, 1, 0)),
                     velocity: direction.clone().multiplyScalar(15),
                     life: 5,
                     mesh: null,
                 };
-                // More detailed coconut with texture
+                // Detailed coconut — slightly oval, fiber texture, three eye spots
                 const cocoGroup = new THREE.Group();
-                const shell = new THREE.Mesh(
-                    new THREE.SphereGeometry(0.15, 12, 12),
+                const cocoGeo = new THREE.SphereGeometry(0.15, 14, 12);
+                const ccp = cocoGeo.attributes.position;
+                // Make slightly oval + fiber bumps
+                for (let v = 0; v < ccp.count; v++) {
+                    const x = ccp.getX(v), y = ccp.getY(v), z = ccp.getZ(v);
+                    const fiber = Math.sin(y * 20 + x * 10) * 0.003 + Math.sin(z * 15) * 0.002;
+                    ccp.setX(v, x * 1.05 + fiber);
+                    ccp.setY(v, y * 0.92);
+                    ccp.setZ(v, z * 1.02 + fiber);
+                }
+                cocoGeo.computeVertexNormals();
+                const shell = new THREE.Mesh(cocoGeo,
                     new THREE.MeshPhongMaterial({ color: 0x8B5E3C, map: barkTex, shininess: 30 })
                 );
                 shell.castShadow = true;
                 cocoGroup.add(shell);
-                // Three dots on the coconut
+                // Three eye spots (recessed dark spots with lighter rim)
                 for (let d = 0; d < 3; d++) {
-                    const dot = new THREE.Mesh(
-                        new THREE.SphereGeometry(0.025, 6, 6),
-                        new THREE.MeshPhongMaterial({ color: 0x3A2A1A })
-                    );
                     const da = (Math.PI * 2 / 3) * d;
-                    dot.position.set(Math.cos(da) * 0.08, 0.1, Math.sin(da) * 0.08);
+                    // Rim
+                    const rim = new THREE.Mesh(
+                        new THREE.CircleGeometry(0.025, 8),
+                        new THREE.MeshPhongMaterial({ color: 0x5A4030, side: THREE.DoubleSide })
+                    );
+                    rim.position.set(Math.cos(da) * 0.09, 0.1, Math.sin(da) * 0.09);
+                    rim.lookAt(rim.position.clone().multiplyScalar(2));
+                    cocoGroup.add(rim);
+                    // Dark center
+                    const dot = new THREE.Mesh(
+                        new THREE.CircleGeometry(0.015, 6),
+                        new THREE.MeshPhongMaterial({ color: 0x1A0A00, side: THREE.DoubleSide })
+                    );
+                    dot.position.set(Math.cos(da) * 0.095, 0.1, Math.sin(da) * 0.095);
+                    dot.lookAt(dot.position.clone().multiplyScalar(2));
                     cocoGroup.add(dot);
                 }
                 coconut.mesh = cocoGroup;
@@ -3346,15 +4763,29 @@
             document.getElementById('end-screen').classList.add('visible');
         }
 
-        document.getElementById('play-menehune').addEventListener('click', () => {
+        // Helper: attach both click and touchend for reliable mobile tap handling
+        function onTap(el, fn) {
+            let touched = false;
+            el.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                touched = true;
+                fn();
+            }, { passive: false });
+            el.addEventListener('click', (e) => {
+                if (touched) { touched = false; return; } // Already handled by touchend
+                fn();
+            });
+        }
+
+        onTap(document.getElementById('play-menehune'), () => {
             startGame('menehune', true);
         });
 
-        document.getElementById('play-hunter').addEventListener('click', () => {
+        onTap(document.getElementById('play-hunter'), () => {
             startGame('hunter', true);
         });
 
-        document.getElementById('solo-btn').addEventListener('click', () => {
+        onTap(document.getElementById('solo-btn'), () => {
             // Show role selection buttons, hide main lobby buttons
             document.getElementById('solo-btn').style.display = 'none';
             document.getElementById('create-btn').style.display = 'none';
@@ -3363,7 +4794,7 @@
             document.getElementById('play-hunter').style.display = 'block';
         });
 
-        document.getElementById('restart-btn').addEventListener('click', () => {
+        onTap(document.getElementById('restart-btn'), () => {
             // Clean up all player meshes from the scene
             Object.values(players).forEach(p => {
                 if (p.mesh) scene.remove(p.mesh);
@@ -3534,20 +4965,33 @@
         // ============ GRASS TUFTS ============
         function createGrassTufts() {
             const group = new THREE.Group();
-            const greenColors = [0x2D5016, 0x3A6A1F, 0x4A7A2E, 0x5A8A3E];
+            const greenColors = [0x2D5016, 0x3A6A1F, 0x4A7A2E, 0x5A8A3E, 0x467025];
             for (let i = 0; i < 500; i++) {
                 const x = (Math.random() - 0.5) * 360;
                 const z = -80 + Math.random() * 240;
                 const tuftGroup = new THREE.Group();
-                for (let j = 0; j < 3; j++) {
-                    const angle = (Math.PI * 2 / 3) * j + Math.random() * 0.3;
-                    const geo = new THREE.PlaneGeometry(0.15, 0.8, 1, 4);
+                const bladeCount = 3 + Math.floor(Math.random() * 3); // 3-5 blades per tuft
+                for (let j = 0; j < bladeCount; j++) {
+                    const angle = (Math.PI * 2 / bladeCount) * j + Math.random() * 0.4;
+                    const bladeH = 0.5 + Math.random() * 0.5;
+                    const bladeW = 0.08 + Math.random() * 0.1;
+                    const geo = new THREE.PlaneGeometry(bladeW, bladeH, 1, 5);
+                    const gp = geo.attributes.position;
+                    for (let v = 0; v < gp.count; v++) {
+                        const vy = gp.getY(v), vx = gp.getX(v);
+                        const t = (vy + bladeH / 2) / bladeH;
+                        // Taper toward tip
+                        gp.setX(v, vx * (1 - t * 0.7));
+                        // Slight curve
+                        gp.setZ(v, t * t * 0.08 * (j % 2 === 0 ? 1 : -1));
+                    }
+                    geo.computeVertexNormals();
                     const color = greenColors[Math.floor(Math.random() * greenColors.length)];
-                    const mat = new THREE.MeshPhongMaterial({ color: color, side: THREE.DoubleSide, shininess: 15 });
+                    const mat = new THREE.MeshPhongMaterial({ color: color, side: THREE.DoubleSide, shininess: 12 });
                     const mesh = new THREE.Mesh(geo, mat);
-                    mesh.position.set(Math.cos(angle)*0.1, 0, Math.sin(angle)*0.1);
+                    mesh.position.set(Math.cos(angle) * 0.08, 0, Math.sin(angle) * 0.08);
                     mesh.rotation.y = angle;
-                    mesh.rotation.z = 0.3 + Math.random() * 0.2;
+                    mesh.rotation.z = 0.2 + Math.random() * 0.3;
                     tuftGroup.add(mesh);
                 }
                 tuftGroup.position.set(x, 0.1, z);
@@ -3561,30 +5005,52 @@
         function createHangingLanterns() {
             const group = new THREE.Group();
             const lanternColors = [0xFFAA44, 0xFF8866, 0xFFCC33, 0xFF6644];
+            const wireMat = new THREE.MeshPhongMaterial({ color: 0x333333, shininess: 30 });
             for (let i = 0; i < 30; i++) {
                 const x = (Math.random() - 0.5) * 200;
                 const z = -40 + Math.random() * 180;
                 const color = lanternColors[i % lanternColors.length];
+                const lantern = new THREE.Group();
 
-                const sphere = new THREE.Mesh(
-                    new THREE.SphereGeometry(0.3, 8, 8),
+                // Paper globe (slightly oblate)
+                const globe = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.28, 10, 10),
                     new THREE.MeshPhongMaterial({ color: color, emissive: color, emissiveIntensity: 0.7 })
                 );
-                sphere.position.set(x, 2.5, z);
-                sphere.castShadow = true;
-                group.add(sphere);
+                globe.scale.y = 1.2;
+                globe.castShadow = true;
+                lantern.add(globe);
 
-                // Only every 4th lantern gets a real light for mobile perf
+                // Wire frame ribs (4 meridians)
+                for (let wr = 0; wr < 4; wr++) {
+                    const rib = new THREE.Mesh(
+                        new THREE.TorusGeometry(0.28, 0.004, 6, 14),
+                        wireMat
+                    );
+                    rib.rotation.y = (wr / 4) * Math.PI;
+                    rib.scale.y = 1.2;
+                    lantern.add(rib);
+                }
+                // Top/bottom wire caps
+                const topCap = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.03, 6), wireMat);
+                topCap.position.y = 0.34;
+                lantern.add(topCap);
+                const botCap = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.04, 0.025, 6), wireMat);
+                botCap.position.y = -0.34;
+                lantern.add(botCap);
+
+                lantern.position.set(x, 2.5, z);
+                group.add(lantern);
+
+                // Every 4th gets a real light
                 if (i % 4 === 0) {
                     const light = new THREE.PointLight(color, 0.6, 10);
                     light.position.set(x, 2.5, z);
                     group.add(light);
                 }
 
-                const cable = new THREE.Mesh(
-                    new THREE.CylinderGeometry(0.02, 0.02, 0.5, 6),
-                    new THREE.MeshPhongMaterial({ color: 0x333333 })
-                );
+                // Hanging cable
+                const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.45, 6), wireMat);
                 cable.position.set(x, 2.75, z);
                 group.add(cable);
             }
@@ -3596,21 +5062,44 @@
         function createSteppingStones() {
             const group = new THREE.Group();
             const mat = new THREE.MeshPhongMaterial({ map: stoneTex, shininess: 15 });
+            const mossMat = new THREE.MeshPhongMaterial({ color: 0x3A6A1F, shininess: 5, transparent: true, opacity: 0.7 });
+            function makeIrregularStone(r1, r2, h) {
+                const geo = new THREE.CylinderGeometry(r1, r2, h, 12, 1);
+                const p = geo.attributes.position;
+                for (let v = 0; v < p.count; v++) {
+                    const x = p.getX(v), z = p.getZ(v);
+                    const angle = Math.atan2(z, x);
+                    const wobble = 1 + Math.sin(angle * 3) * 0.1 + Math.sin(angle * 7) * 0.05;
+                    p.setX(v, x * wobble);
+                    p.setZ(v, z * wobble);
+                }
+                geo.computeVertexNormals();
+                return geo;
+            }
             // Ring of stones around village
             for (let i = 0; i < 15; i++) {
                 const angle = (Math.PI * 2 / 15) * i;
                 const distance = 20 + (i % 2) * 5;
                 const x = Math.cos(angle) * distance;
                 const z = Math.sin(angle) * distance + 40;
-                const stone = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.55, 0.08, 12), mat);
+                const stone = new THREE.Mesh(makeIrregularStone(0.5, 0.55, 0.08), mat);
                 stone.castShadow = true;
                 stone.receiveShadow = true;
                 stone.position.set(x, 0.04, z);
+                stone.rotation.y = Math.random() * Math.PI;
                 group.add(stone);
+                // Occasional moss patch
+                if (Math.random() > 0.6) {
+                    const moss = new THREE.Mesh(new THREE.CircleGeometry(0.15 + Math.random() * 0.1, 6), mossMat);
+                    moss.position.set(x + (Math.random() - 0.5) * 0.2, 0.09, z + (Math.random() - 0.5) * 0.2);
+                    moss.rotation.x = -Math.PI / 2;
+                    group.add(moss);
+                }
             }
-            // Path stepping stones along the sandy path
+            // Path stepping stones
             for (let i = 0; i < 25; i++) {
-                const stone = new THREE.Mesh(new THREE.CylinderGeometry(0.4 + Math.random() * 0.2, 0.5, 0.06, 12), mat);
+                const r = 0.4 + Math.random() * 0.2;
+                const stone = new THREE.Mesh(makeIrregularStone(r, r + 0.1, 0.06), mat);
                 stone.castShadow = true;
                 stone.receiveShadow = true;
                 stone.position.set((Math.random() - 0.5) * 3, 0.03, -80 + i * 10 + Math.random() * 5);
@@ -3632,23 +5121,58 @@
                 depthWrite: false,
             });
             // Multiple foam strips at slightly different Z positions for depth
-            for (let strip = 0; strip < 3; strip++) {
-                const geo = new THREE.PlaneGeometry(400, 3 - strip, 80, 4);
-                // Wave the vertices for organic shape
+            for (let strip = 0; strip < 4; strip++) {
+                const w = 400;
+                const h = 3.5 - strip * 0.6;
+                const geo = new THREE.PlaneGeometry(w, h, 100, 6);
+                // Multi-frequency wave for organic foam edge
                 const fp = geo.attributes.position;
                 for (let v = 0; v < fp.count; v++) {
                     const x = fp.getX(v);
-                    fp.setY(v, fp.getY(v) + Math.sin(x * 0.1 + strip) * 0.5);
+                    const y = fp.getY(v);
+                    fp.setY(v, y
+                        + Math.sin(x * 0.08 + strip * 1.3) * 0.6
+                        + Math.sin(x * 0.25 + strip * 0.7) * 0.25
+                        + Math.sin(x * 0.5) * 0.1
+                    );
                 }
+                // Vertex colors for foam density variation
+                const foamColors = new Float32Array(fp.count * 3);
+                for (let v = 0; v < fp.count; v++) {
+                    const bright = 0.85 + Math.random() * 0.15;
+                    foamColors[v*3] = bright;
+                    foamColors[v*3+1] = bright;
+                    foamColors[v*3+2] = bright + 0.05;
+                }
+                geo.setAttribute('color', new THREE.BufferAttribute(foamColors, 3));
                 geo.computeVertexNormals();
-                const mesh = new THREE.Mesh(geo, foamMat.clone());
-                mesh.material.opacity = 0.3 - strip * 0.08;
+                const mat = foamMat.clone();
+                mat.vertexColors = true;
+                mat.opacity = 0.32 - strip * 0.06;
+                const mesh = new THREE.Mesh(geo, mat);
                 mesh.rotation.x = -Math.PI / 2;
-                mesh.position.set(0, 0.04 + strip * 0.01, -158 + strip * 2);
+                mesh.position.set(0, 0.04 + strip * 0.012, -157.5 + strip * 2.2);
                 mesh.receiveShadow = true;
                 group.add(mesh);
             }
-            group.userData.foamMats = group.children.map(c => c.material);
+            // Bubble clusters scattered along the foam line
+            const bubbleMat = new THREE.MeshPhongMaterial({
+                color: 0xEEFFFF, transparent: true, opacity: 0.25, shininess: 80, specular: 0xFFFFFF, depthWrite: false
+            });
+            for (let i = 0; i < 40; i++) {
+                const bx = (Math.random() - 0.5) * 380;
+                const bz = -157 + Math.random() * 6;
+                const clusterSize = 2 + Math.floor(Math.random() * 4);
+                for (let b = 0; b < clusterSize; b++) {
+                    const bub = new THREE.Mesh(
+                        new THREE.SphereGeometry(0.04 + Math.random() * 0.08, 6, 6),
+                        bubbleMat
+                    );
+                    bub.position.set(bx + (Math.random() - 0.5) * 0.4, 0.06, bz + (Math.random() - 0.5) * 0.4);
+                    group.add(bub);
+                }
+            }
+            group.userData.foamMats = group.children.filter(c => c.isMesh && c.material.vertexColors).map(c => c.material);
             return group;
         }
         const beachFoam = createBeachFoam();
@@ -3682,39 +5206,80 @@
         function createBonfire() {
             const group = new THREE.Group();
             const woodMat = new THREE.MeshPhongMaterial({ map: barkTex, bumpMap: barkBumpTex, bumpScale: 0.3, shininess: 15 });
+            const charMat = new THREE.MeshPhongMaterial({ color: 0x1A0800, shininess: 2 });
+            const ashMat = new THREE.MeshPhongMaterial({ color: 0x888888, shininess: 3, transparent: true, opacity: 0.6 });
 
-            // Logs
-            for (let i = 0; i < 4; i++) {
-                const angle = (Math.PI * 2 / 4) * i;
-                const log = new THREE.Mesh(
-                    new THREE.CylinderGeometry(0.2, 0.18, 1.5, 12),
-                    woodMat
+            // Stone ring around base
+            for (let sr = 0; sr < 10; sr++) {
+                const sAngle = (sr / 10) * Math.PI * 2;
+                const stone = new THREE.Mesh(
+                    new THREE.IcosahedronGeometry(0.15 + Math.random() * 0.08, 1),
+                    new THREE.MeshPhongMaterial({ color: 0x666666, shininess: 10 })
                 );
+                stone.position.set(Math.cos(sAngle) * 0.7, 0.08, Math.sin(sAngle) * 0.7);
+                stone.scale.y = 0.5;
+                group.add(stone);
+            }
+
+            // Ash bed (flat disc)
+            const ashBed = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.03, 12), ashMat);
+            ashBed.position.y = 0.02;
+            group.add(ashBed);
+
+            // Logs with char marks
+            for (let i = 0; i < 5; i++) {
+                const angle = (Math.PI * 2 / 5) * i + Math.random() * 0.3;
+                const logLen = 1.2 + Math.random() * 0.4;
+                const logGeo = new THREE.CylinderGeometry(0.15 + Math.random() * 0.08, 0.12, logLen, 10, 4);
+                // Add vertex colors for charring
+                const lp = logGeo.attributes.position;
+                const logColors = new Float32Array(lp.count * 3);
+                for (let v = 0; v < lp.count; v++) {
+                    const ly = lp.getY(v);
+                    // Ends are more charred
+                    const charFactor = Math.pow(Math.abs(ly) / (logLen / 2), 2);
+                    logColors[v * 3] = 1 - charFactor * 0.7;
+                    logColors[v * 3 + 1] = 1 - charFactor * 0.8;
+                    logColors[v * 3 + 2] = 1 - charFactor * 0.85;
+                }
+                logGeo.setAttribute('color', new THREE.BufferAttribute(logColors, 3));
+                const logMat = woodMat.clone();
+                logMat.vertexColors = true;
+                const log = new THREE.Mesh(logGeo, logMat);
                 log.castShadow = true;
-                log.rotation.z = Math.PI / 3;
-                log.position.set(Math.cos(angle)*0.3, 0.5, Math.sin(angle)*0.3);
+                log.rotation.z = Math.PI / 3 + Math.random() * 0.3;
+                log.rotation.y = angle;
+                log.position.set(Math.cos(angle) * 0.25, 0.35, Math.sin(angle) * 0.25);
                 group.add(log);
             }
 
-            // Flames
-            for (let i = 0; i < 3; i++) {
-                const y = 0.8 + i * 0.35;
-                const scale = 1.2 - i * 0.3;
+            // Glowing ember bed
+            const emberBed = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.3, 0.35, 0.08, 10),
+                new THREE.MeshPhongMaterial({ color: 0xFF4400, emissive: 0xFF2200, emissiveIntensity: 0.5, transparent: true, opacity: 0.7 })
+            );
+            emberBed.position.y = 0.15;
+            group.add(emberBed);
+
+            // Tapered cone flames instead of spheres
+            for (let i = 0; i < 4; i++) {
+                const y = 0.6 + i * 0.3;
+                const scale = 1.3 - i * 0.3;
                 const flameMat = new THREE.MeshPhongMaterial({
-                    color: [0xFFDD00, 0xFF8800, 0xFF4400][i],
-                    emissive: [0xFFAA00, 0xFF6600, 0xFF2200][i],
-                    emissiveIntensity: 0.8
+                    color: [0xFFDD00, 0xFFAA00, 0xFF7700, 0xFF3300][i],
+                    emissive: [0xFFAA00, 0xFF7700, 0xFF4400, 0xFF1100][i],
+                    emissiveIntensity: 0.8,
+                    transparent: true,
+                    opacity: 0.9 - i * 0.1
                 });
-                const flame = new THREE.Mesh(new THREE.SphereGeometry(0.4 * scale, 8, 8), flameMat);
-                flame.position.y = y;
-                flame.castShadow = true;
+                const flame = new THREE.Mesh(new THREE.ConeGeometry(0.3 * scale, 0.5 * scale, 8), flameMat);
+                flame.position.set((Math.random() - 0.5) * 0.1, y, (Math.random() - 0.5) * 0.1);
                 group.add(flame);
             }
 
             // Fire light
             const fireLight = new THREE.PointLight(0xFF8844, 1.5, 20);
             fireLight.position.set(0, 1.2, 0);
-            // Only the sun casts shadows — point lights skip for mobile perf
             group.add(fireLight);
 
             group.userData.fireLight = fireLight;
@@ -3745,7 +5310,7 @@
                 const x = (Math.random() - 0.5) * 250;
                 const z = -50 + Math.random() * 200;
 
-                // Pot
+                // Pot with rim lip
                 const pot = new THREE.Mesh(
                     new THREE.CylinderGeometry(0.3, 0.35, 0.4, 12),
                     potMat
@@ -3753,10 +5318,34 @@
                 pot.castShadow = true;
                 pot.position.set(x, 0.2, z);
                 group.add(pot);
+                // Pot rim lip
+                const potRim = new THREE.Mesh(
+                    new THREE.TorusGeometry(0.31, 0.025, 6, 14),
+                    potMat
+                );
+                potRim.position.set(x, 0.4, z);
+                potRim.rotation.x = Math.PI / 2;
+                group.add(potRim);
+                // Pot base ring
+                const potBase = new THREE.Mesh(
+                    new THREE.TorusGeometry(0.33, 0.015, 4, 12),
+                    new THREE.MeshPhongMaterial({ color: 0xA06020, shininess: 15 })
+                );
+                potBase.position.set(x, 0.02, z);
+                potBase.rotation.x = Math.PI / 2;
+                group.add(potBase);
 
-                // Soil top
-                const soil = new THREE.Mesh(
-                    new THREE.CylinderGeometry(0.28, 0.28, 0.04, 10),
+                // Soil top with slight mound
+                const soilGeo = new THREE.CylinderGeometry(0.28, 0.28, 0.04, 10);
+                const soP = soilGeo.attributes.position;
+                for (let v = 0; v < soP.count; v++) {
+                    if (soP.getY(v) > 0.01) {
+                        const r = Math.sqrt(soP.getX(v) ** 2 + soP.getZ(v) ** 2);
+                        soP.setY(v, soP.getY(v) + (0.28 - r) * 0.08);
+                    }
+                }
+                soilGeo.computeVertexNormals();
+                const soil = new THREE.Mesh(soilGeo,
                     new THREE.MeshPhongMaterial({ color: 0x3A2A1A, shininess: 5 })
                 );
                 soil.position.set(x, 0.42, z);
@@ -3773,7 +5362,7 @@
 
                     // Stem
                     const stem = new THREE.Mesh(
-                        new THREE.CylinderGeometry(0.015, 0.015, 0.3, 4),
+                        new THREE.CylinderGeometry(0.015, 0.015, 0.3, 6),
                         new THREE.MeshPhongMaterial({ color: 0x2D6B1A, shininess: 8 })
                     );
                     stem.position.set(fx, fy - 0.05, fz);
@@ -3798,13 +5387,21 @@
                         petal.castShadow = true;
                         group.add(petal);
                     }
-                    // Center pistil
+                    // Center pistil with pollen texture
                     const pistil = new THREE.Mesh(
                         new THREE.SphereGeometry(0.04, 8, 8),
                         new THREE.MeshPhongMaterial({ color: 0xFFFF00, shininess: 40, emissive: 0x332200, emissiveIntensity: 0.2 })
                     );
                     pistil.position.set(fx, fy + 0.13, fz);
                     group.add(pistil);
+                    // Small leaf on stem
+                    const leaf = new THREE.Mesh(
+                        new THREE.PlaneGeometry(0.06, 0.04),
+                        new THREE.MeshPhongMaterial({ color: 0x2D6B1A, side: THREE.DoubleSide, shininess: 10 })
+                    );
+                    leaf.position.set(fx + 0.03, fy - 0.08, fz);
+                    leaf.rotation.z = -0.5;
+                    group.add(leaf);
                 }
             }
             return group;
@@ -3818,14 +5415,26 @@
             const starMat = new THREE.MeshPhongMaterial({ color: 0xFF7744, shininess: 25 });
             const driftMat = new THREE.MeshPhongMaterial({ color: 0xAA9977, shininess: 8 });
 
-            // Scattered shells on beach
+            // Scattered shells — scallop ridges via vertex displacement
             for (let i = 0; i < 60; i++) {
                 const mat = Math.random() > 0.5 ? shellMat : pinkShellMat;
-                const shell = new THREE.Mesh(new THREE.SphereGeometry(0.06 + Math.random() * 0.06, 8, 8), mat);
-                shell.scale.set(1, 0.4, 1.2);
+                const shellSize = 0.05 + Math.random() * 0.06;
+                const shellGeo = new THREE.SphereGeometry(shellSize, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.6);
+                const sp = shellGeo.attributes.position;
+                // Scallop ridges
+                const ridgeCount = 6 + Math.floor(Math.random() * 4);
+                for (let v = 0; v < sp.count; v++) {
+                    const x = sp.getX(v), z = sp.getZ(v);
+                    const a = Math.atan2(z, x);
+                    const ridge = 1 + Math.cos(a * ridgeCount) * 0.08;
+                    sp.setX(v, x * ridge);
+                    sp.setZ(v, z * ridge);
+                }
+                shellGeo.computeVertexNormals();
+                const shell = new THREE.Mesh(shellGeo, mat);
+                shell.scale.set(1, 0.35, 1);
                 shell.position.set(
-                    (Math.random() - 0.5) * 350,
-                    0.02,
+                    (Math.random() - 0.5) * 350, 0.02,
                     -155 + Math.random() * 25
                 );
                 shell.rotation.y = Math.random() * Math.PI * 2;
@@ -3833,58 +5442,124 @@
                 scene.add(shell);
             }
 
-            // Starfish
+            // Starfish — tapered arms with center body and suction bumps
             for (let i = 0; i < 12; i++) {
                 const starGroup = new THREE.Group();
+                // Center disc
+                const center = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.04, 0.04, 0.012, 10),
+                    starMat
+                );
+                center.castShadow = true;
+                starGroup.add(center);
                 for (let a = 0; a < 5; a++) {
                     const angle = (Math.PI * 2 / 5) * a;
-                    const arm = new THREE.Mesh(
-                        new THREE.BoxGeometry(0.04, 0.015, 0.12),
-                        starMat
-                    );
+                    // Tapered arm
+                    const armGeo = new THREE.BoxGeometry(0.035, 0.012, 0.13, 1, 1, 4);
+                    const ap = armGeo.attributes.position;
+                    for (let v = 0; v < ap.count; v++) {
+                        const az = ap.getZ(v);
+                        if (az > 0) {
+                            const taper = 1 - (az / 0.065) * 0.6;
+                            ap.setX(v, ap.getX(v) * taper);
+                            ap.setY(v, ap.getY(v) * taper);
+                        }
+                    }
+                    armGeo.computeVertexNormals();
+                    const arm = new THREE.Mesh(armGeo, starMat);
                     arm.position.set(Math.cos(angle) * 0.06, 0, Math.sin(angle) * 0.06);
                     arm.rotation.y = -angle;
                     arm.castShadow = true;
                     starGroup.add(arm);
+                    // Tiny suction bumps along underside
+                    for (let b = 0; b < 2; b++) {
+                        const bump = new THREE.Mesh(
+                            new THREE.SphereGeometry(0.005, 3, 3),
+                            new THREE.MeshPhongMaterial({ color: 0xDD6633, shininess: 10 })
+                        );
+                        const bd = 0.04 + b * 0.04;
+                        bump.position.set(Math.cos(angle) * bd, -0.006, Math.sin(angle) * bd);
+                        starGroup.add(bump);
+                    }
                 }
                 starGroup.position.set(
-                    (Math.random() - 0.5) * 300,
-                    0.02,
+                    (Math.random() - 0.5) * 300, 0.02,
                     -155 + Math.random() * 20
                 );
                 starGroup.rotation.y = Math.random() * Math.PI;
                 scene.add(starGroup);
             }
 
-            // Driftwood pieces
+            // Driftwood — irregular shape with knots and taper
             for (let i = 0; i < 15; i++) {
-                const drift = new THREE.Mesh(
-                    new THREE.CylinderGeometry(0.04 + Math.random() * 0.03, 0.03, 0.8 + Math.random() * 1.2, 8),
-                    driftMat
-                );
+                const dLen = 0.8 + Math.random() * 1.2;
+                const dGeo = new THREE.CylinderGeometry(0.04 + Math.random() * 0.03, 0.02, dLen, 8, 6);
+                const dp = dGeo.attributes.position;
+                for (let v = 0; v < dp.count; v++) {
+                    const y = dp.getY(v), x = dp.getX(v), z = dp.getZ(v);
+                    // Organic irregularity
+                    const warp = Math.sin(y * 6) * 0.008 + Math.sin(y * 12 + x * 5) * 0.005;
+                    dp.setX(v, x + warp);
+                    dp.setZ(v, z + warp * 0.7);
+                    // Knots (random bumps)
+                    const knotDist = Math.abs(y - dLen * 0.15);
+                    if (knotDist < 0.08) {
+                        const knotBulge = 1 + (0.08 - knotDist) * 2;
+                        dp.setX(v, dp.getX(v) * knotBulge);
+                        dp.setZ(v, dp.getZ(v) * knotBulge);
+                    }
+                }
+                dGeo.computeVertexNormals();
+                const drift = new THREE.Mesh(dGeo, driftMat);
                 drift.rotation.z = Math.PI / 2;
                 drift.rotation.y = Math.random() * Math.PI;
                 drift.position.set(
-                    (Math.random() - 0.5) * 350,
-                    0.04,
+                    (Math.random() - 0.5) * 350, 0.04,
                     -148 + Math.random() * 15
                 );
                 drift.castShadow = true;
                 scene.add(drift);
             }
 
-            // Footprints in sand (subtle imprints)
+            // Footprints — shaped with toe impressions and depth variation
             const footMat = new THREE.MeshPhongMaterial({ color: 0xC4A574, shininess: 5 });
             for (let i = 0; i < 8; i++) {
                 for (let s of [-1, 1]) {
-                    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.005, 0.15), footMat);
-                    foot.position.set(
+                    const fGroup = new THREE.Group();
+                    // Main foot depression (oval)
+                    const footGeo = new THREE.BoxGeometry(0.08, 0.006, 0.13, 3, 1, 3);
+                    const fp = footGeo.attributes.position;
+                    for (let v = 0; v < fp.count; v++) {
+                        const fx = fp.getX(v), fz = fp.getZ(v);
+                        // Oval shape
+                        const dist = Math.sqrt((fx / 0.04) ** 2 + (fz / 0.065) ** 2);
+                        if (dist > 0.8) {
+                            fp.setX(v, fx * 0.8 / dist);
+                            fp.setZ(v, fz * 0.8 / dist);
+                        }
+                        // Heel deeper
+                        if (fz < -0.02) fp.setY(v, fp.getY(v) - 0.002);
+                    }
+                    footGeo.computeVertexNormals();
+                    const foot = new THREE.Mesh(footGeo, footMat);
+                    fGroup.add(foot);
+                    // Toe impressions (5 small circles)
+                    for (let t = 0; t < 5; t++) {
+                        const toe = new THREE.Mesh(
+                            new THREE.CircleGeometry(0.008 + (2 - Math.abs(t - 2)) * 0.003, 6),
+                            footMat
+                        );
+                        toe.position.set(-0.025 + t * 0.013, -0.002, 0.075);
+                        toe.rotation.x = -Math.PI / 2;
+                        fGroup.add(toe);
+                    }
+                    fGroup.position.set(
                         s * 0.15 + (Math.random() - 0.5) * 60,
                         0.001,
                         -140 + i * 3
                     );
-                    foot.rotation.y = Math.random() * 0.3;
-                    scene.add(foot);
+                    fGroup.rotation.y = Math.random() * 0.3;
+                    scene.add(fGroup);
                 }
             }
         })();
@@ -3941,15 +5616,56 @@
         function createButterflies() {
             const group = new THREE.Group();
             const butterflyColors = [0xFF69B4, 0xFFAA00, 0x44AAFF, 0xAA44FF, 0xFF4444, 0x44FF88];
+            const bodyMat = new THREE.MeshPhongMaterial({ color: 0x222222, shininess: 15 });
             for (let i = 0; i < 25; i++) {
                 const butterfly = new THREE.Group();
                 const color = butterflyColors[i % butterflyColors.length];
                 const wingMat = new THREE.MeshPhongMaterial({ color: color, side: THREE.DoubleSide, shininess: 20, transparent: true, opacity: 0.85 });
+                // Shaped wings with rounded outer edge
                 for (let w of [-1, 1]) {
-                    const wing = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 0.1), wingMat);
-                    wing.position.x = w * 0.08;
-                    wing.rotation.y = w * 0.4;
-                    butterfly.add(wing);
+                    // Upper wing (larger, rounded)
+                    const upperGeo = new THREE.PlaneGeometry(0.12, 0.1, 3, 2);
+                    const up = upperGeo.attributes.position;
+                    for (let v = 0; v < up.count; v++) {
+                        const wx = up.getX(v), wy = up.getY(v);
+                        // Round outer edge
+                        const dist = Math.sqrt((wx / 0.06) ** 2 + (wy / 0.05) ** 2);
+                        if (dist > 0.9) { up.setX(v, wx * 0.9 / dist); up.setY(v, wy * 0.9 / dist); }
+                    }
+                    upperGeo.computeVertexNormals();
+                    const upper = new THREE.Mesh(upperGeo, wingMat);
+                    upper.position.set(w * 0.07, 0.02, 0);
+                    upper.rotation.y = w * 0.4;
+                    butterfly.add(upper);
+                    // Lower wing (smaller)
+                    const lowerGeo = new THREE.PlaneGeometry(0.08, 0.06, 2, 2);
+                    const lower = new THREE.Mesh(lowerGeo, wingMat);
+                    lower.position.set(w * 0.05, -0.03, 0);
+                    lower.rotation.y = w * 0.3;
+                    butterfly.add(lower);
+                    // Wing spot (darker dot on upper wing)
+                    const spot = new THREE.Mesh(
+                        new THREE.CircleGeometry(0.015, 6),
+                        new THREE.MeshPhongMaterial({ color: 0x000000, side: THREE.DoubleSide, transparent: true, opacity: 0.5 })
+                    );
+                    spot.position.set(w * 0.08, 0.02, 0.001);
+                    butterfly.add(spot);
+                }
+                // Body (thin cylinder)
+                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.006, 0.08, 6), bodyMat);
+                body.rotation.x = Math.PI / 2;
+                butterfly.add(body);
+                // Antennae
+                for (let a of [-1, 1]) {
+                    const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.002, 0.002, 0.06, 3), bodyMat);
+                    ant.position.set(a * 0.01, 0.02, 0.04);
+                    ant.rotation.x = -0.5;
+                    ant.rotation.z = a * 0.3;
+                    butterfly.add(ant);
+                    // Antenna tip
+                    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.004, 3, 3), bodyMat);
+                    tip.position.set(a * 0.025, 0.045, 0.06);
+                    butterfly.add(tip);
                 }
                 butterfly.position.set(
                     (Math.random() - 0.5) * 300,
@@ -4037,9 +5753,7 @@
                         move.addScaledVector(camForward, -inputZ); // negative because joystick up = forward
                         move.normalize();
                         localPlayer.velocity.copy(move.multiplyScalar(8));
-
-                        // Rotate player mesh to face movement direction
-                        localPlayer.mesh.rotation.y = Math.atan2(move.x, move.z);
+                        // Facing is now handled smoothly in Player.update()
                     } else {
                         localPlayer.velocity.set(0, 0, 0);
                     }
@@ -4062,6 +5776,9 @@
                     proj.velocity.y -= 9.8 * deltaTime;
                     proj.life -= deltaTime;
                     proj.mesh.position.copy(proj.position);
+                    // Tumble spin during flight
+                    proj.mesh.rotation.x += deltaTime * 8;
+                    proj.mesh.rotation.z += deltaTime * 5;
 
                     // Check collision with menehune players (hidden or visible)
                     let hit = false;
