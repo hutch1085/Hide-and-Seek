@@ -945,6 +945,8 @@
             }
             return particles;
         }
+        // Forward-declare torches array (populated later by addTorch)
+        let torches = [];
         // Smoke at each bonfire
         const smokeEmitters = [];
         const smokePositions = [[-50, 0, 50], [70, 0, -120], [-120, 0, 100]];
@@ -2033,7 +2035,6 @@
             return group;
         }
 
-        let torches = [];
         let torchIndex = 0;
         function addTorch(x, y, z) {
             const torch = createTikiTorch();
